@@ -19,7 +19,16 @@ const LineScreen = () => {
     const loadLines = async () => {
       try {
         const collection = database.get<RailwayLine>('railway_lines');
+        console.log('[LineScreen] Looking for lines with operator_id:', operatorId);
+        
+        const allLines = await collection.query().fetch();
+        console.log('[LineScreen] Total lines in database:', allLines.length);
+        if (allLines.length > 0) {
+          console.log('[LineScreen] Sample line operator_ids:', allLines.slice(0, 3).map(l => ({ id: l.id, operatorId: l.operatorId, name: l.name })));
+        }
+        
         const records = await collection.query(Q.where('operator_id', operatorId)).fetch();
+        console.log('[LineScreen] Matching lines found:', records.length);
         setLines(records);
       } catch (e) {
         console.error('Error loading lines:', e);

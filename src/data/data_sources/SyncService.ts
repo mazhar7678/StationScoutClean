@@ -50,15 +50,17 @@ export async function syncEvents(): Promise<void> {
 
         return eventsCollection.prepareCreate((record: Event) => {
           record._raw.id = event.source_id || event.id;
-          record.sourceId = event.source_id || event.id;
-          record.name = event.name || 'Unnamed Event';
-          record.url = event.url || '';
-          record.startDate = event.start_date;
-          record.venueName = event.venue_name;
-          record.venueAddress = event.venue_address;
-          record.source = event.source || 'unknown';
-          record.latitude = latitude;
-          record.longitude = longitude;
+          record._raw.source_id = event.source_id || event.id;
+          record._raw.name = event.name || 'Unnamed Event';
+          record._raw.url = event.url || '';
+          record._raw.start_date = event.start_date || null;
+          record._raw.venue_name = event.venue_name || null;
+          record._raw.venue_address = event.venue_address || null;
+          record._raw.source = event.source || 'unknown';
+          record._raw.latitude = latitude ?? null;
+          record._raw.longitude = longitude ?? null;
+          record._raw.created_at = Date.now();
+          record._raw.updated_at = Date.now();
         });
       });
 
@@ -101,9 +103,10 @@ export async function syncOperators(): Promise<void> {
       const records = data.map(item =>
         collection.prepareCreate((record: TrainOperator) => {
           record._raw.id = item.id;
-          record.name = item.name || '';
-          record.country = item.country;
-          record.logoUrl = item.logo_url;
+          record._raw.name = item.name || '';
+          record._raw.country = item.country || null;
+          record._raw.logo_url = item.logo_url || null;
+          record._raw.updated_at = Date.now();
         })
       );
       await database.batch(...records);
@@ -145,10 +148,11 @@ export async function syncLines(): Promise<void> {
       const records = data.map(item =>
         collection.prepareCreate((record: RailwayLine) => {
           record._raw.id = item.id;
-          record.operatorId = item.operator_id;
-          record.name = item.name || '';
-          record.code = item.code;
-          record.color = item.color;
+          record._raw.operator_id = item.operator_id;
+          record._raw.name = item.name || '';
+          record._raw.code = item.code || null;
+          record._raw.color = item.color || null;
+          record._raw.updated_at = Date.now();
         })
       );
       await database.batch(...records);
@@ -190,11 +194,12 @@ export async function syncStations(): Promise<void> {
       const records = data.map(item =>
         collection.prepareCreate((record: Station) => {
           record._raw.id = item.id;
-          record.lineId = item.line_id;
-          record.name = item.name || '';
-          record.code = item.code;
-          record.latitude = item.latitude || 0;
-          record.longitude = item.longitude || 0;
+          record._raw.line_id = item.line_id;
+          record._raw.name = item.name || '';
+          record._raw.code = item.code || null;
+          record._raw.latitude = item.latitude || 0;
+          record._raw.longitude = item.longitude || 0;
+          record._raw.updated_at = Date.now();
         })
       );
       await database.batch(...records);
