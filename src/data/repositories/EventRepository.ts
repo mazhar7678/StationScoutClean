@@ -2,25 +2,26 @@ import { Q } from '@nozbe/watermelondb';
 import { Collection, Database } from '@nozbe/watermelondb';
 
 import {
-  EventRecord,
+  Event,
   RailwayLine,
   Station,
   TrainOperator,
-} from '@data/db/models';
-import { offlineDatabase } from '@data/data_sources/offline_database';
+} from '../db/models';
+import { database as offlineDatabase } from '../data_sources/offline_database';
+
+export type EventRecord = Event;
 
 export class EventRepository {
   private readonly operators: Collection<TrainOperator>;
   private readonly lines: Collection<RailwayLine>;
   private readonly stations: Collection<Station>;
-  private readonly events: Collection<EventRecord>;
+  private readonly events: Collection<Event>;
 
   constructor(private readonly database: Database = offlineDatabase) {
-    this.operators =
-      this.database.collections.get<TrainOperator>('train_operators');
-    this.lines = this.database.collections.get<RailwayLine>('railway_lines');
-    this.stations = this.database.collections.get<Station>('stations');
-    this.events = this.database.collections.get<EventRecord>('events');
+    this.operators = this.database.get<TrainOperator>('train_operators');
+    this.lines = this.database.get<RailwayLine>('railway_lines');
+    this.stations = this.database.get<Station>('stations');
+    this.events = this.database.get<Event>('events');
   }
 
   operatorsQuery() {
@@ -49,5 +50,9 @@ export class EventRepository {
 
   eventById(eventId: string) {
     return this.events.query(Q.where('id', eventId));
+  }
+
+  allEvents() {
+    return this.events.query();
   }
 }

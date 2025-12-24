@@ -1,13 +1,22 @@
-import { useQuery } from '@tanstack/react-query';
-
-import { syncService } from '@data/data_sources/SyncService';
+import { useMutation } from '@tanstack/react-query';
+import { syncService } from '../../data/data_sources/SyncService';
 
 export function useSyncService() {
-  return useQuery({
-    queryKey: ['initial-sync'],
-    queryFn: () => syncService.syncAll(),
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
+  const syncMutation = useMutation({
+    mutationFn: () => syncService.syncAll(),
+    onError: (error) => {
+      console.error('[useSyncService] Sync failed:', error);
+    },
+    onSuccess: () => {
+      console.log('[useSyncService] Sync completed successfully');
+    },
   });
+
+  return {
+    sync: syncMutation.mutate,
+    syncAsync: syncMutation.mutateAsync,
+    isSyncing: syncMutation.isPending,
+    error: syncMutation.error,
+    isSuccess: syncMutation.isSuccess,
+  };
 }

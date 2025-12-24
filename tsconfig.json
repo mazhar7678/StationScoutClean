@@ -5,10 +5,18 @@
     "jsx": "react-native",
     "esModuleInterop": true,
     "skipLibCheck": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
     "baseUrl": ".",
     "paths": {
       "@/*": [
         "src/*"
+      ],
+      "@data/*": [
+        "src/data/*"
+      ],
+      "@presentation/*": [
+        "src/presentation/*"
       ]
     }
   },

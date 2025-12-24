@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Button, Text, TextInput } from 'react-native-paper';
 
-import { SupabaseClient } from '@data/data_sources/supabase_client';
+import { SupabaseClient } from '../../../data/data_sources/supabase_client';
 
 const SignUpScreen = () => {
   const [email, setEmail] = useState('');

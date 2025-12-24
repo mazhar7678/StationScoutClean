@@ -1,19 +1,20 @@
-// App.tsx
 import { DatabaseProvider } from '@nozbe/watermelondb/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { PaperProvider } from 'react-native-paper';
 import { database } from './src/data/data_sources/offline_database';
-
-// ** THIS IS THE FIX **
-// The path now correctly points to the file's real location.
 import AppNavigator from './src/presentation/navigation/AppNavigator';
+
+const queryClient = new QueryClient();
 
 export default function App() {
   return (
-    <DatabaseProvider database={database}>
-      <PaperProvider>
-        <AppNavigator />
-      </PaperProvider>
-    </DatabaseProvider>
+    <QueryClientProvider client={queryClient}>
+      <DatabaseProvider database={database}>
+        <PaperProvider>
+          <AppNavigator />
+        </PaperProvider>
+      </DatabaseProvider>
+    </QueryClientProvider>
   );
 }
