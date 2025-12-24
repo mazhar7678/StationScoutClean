@@ -68,13 +68,13 @@ export async function syncEvents(): Promise<void> {
               longitude = parseFloat(coordinates[0]);
               latitude = parseFloat(coordinates[1]);
             }
-          } else if (/^[0-9a-fA-F]+$/.test(loc) && loc.length >= 42) {
+          } else if (/^[0-9a-fA-F]+$/.test(loc) && loc.length >= 50) {
             try {
-              const coordHex = loc.substring(10, 42);
-              const lonHex = coordHex.substring(0, 16);
-              const latHex = coordHex.substring(16, 32);
+              const lonHex = loc.substring(18, 34);
+              const latHex = loc.substring(34, 50);
               longitude = hexToDouble(lonHex);
               latitude = hexToDouble(latHex);
+              console.log('[SyncService] Parsed event coords:', { longitude, latitude, name: event.name?.substring(0, 30) });
             } catch (e) {
               console.warn('Failed to parse location hex:', e);
             }
