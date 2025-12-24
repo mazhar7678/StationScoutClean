@@ -34,7 +34,9 @@ const EventListScreen = () => {
         const collection = database.get<Event>('events');
         let records = await collection.query().fetch();
         
-        console.log('[EventList] Total events loaded:', records.length);
+        records = records.filter(e => e.source === 'ticketmaster');
+        
+        console.log('[EventList] Ticketmaster events:', records.length);
         console.log('[EventList] Station coords:', { latitude, longitude, stationName });
         
         const eventsWithCoords = records.filter(e => e.latitude && e.longitude);
