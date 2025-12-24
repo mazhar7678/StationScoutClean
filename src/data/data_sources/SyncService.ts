@@ -20,7 +20,10 @@ export async function syncEvents(): Promise<void> {
     console.log('[SyncService] Starting event sync...');
 
     const eventsCollection = database.get<Event>('events');
-    const { data: supabaseEvents, error } = await SupabaseClient.client.from('events').select('*');
+    const { data: supabaseEvents, error } = await SupabaseClient.client
+      .from('events')
+      .select('*')
+      .limit(5000);
 
     if (error) {
       console.error('[SyncService] Error fetching events from Supabase:', error.message);
@@ -36,6 +39,11 @@ export async function syncEvents(): Promise<void> {
       const sample = supabaseEvents[0];
       console.log('[SyncService] Sample event url:', sample.url);
       console.log('[SyncService] Sample event location:', sample.location);
+      
+      const sources = [...new Set(supabaseEvents.map((e: any) => e.source))];
+      console.log('[SyncService] Event sources from Supabase:', sources);
+      const ticketmasterCount = supabaseEvents.filter((e: any) => e.source === 'ticketmaster').length;
+      console.log('[SyncService] Ticketmaster events in Supabase:', ticketmasterCount);
     }
     
     const eventsWithLocation = supabaseEvents.filter((e: any) => e.location);

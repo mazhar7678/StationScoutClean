@@ -34,6 +34,10 @@ const EventListScreen = () => {
         const collection = database.get<Event>('events');
         let records = await collection.query().fetch();
         
+        const sources = [...new Set(records.map(e => e.source))];
+        console.log('[EventList] All sources in database:', sources);
+        console.log('[EventList] Total events before filter:', records.length);
+        
         records = records.filter(e => e.source === 'ticketmaster');
         
         console.log('[EventList] Ticketmaster events:', records.length);
