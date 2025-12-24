@@ -19,7 +19,7 @@ const StationListScreen = () => {
     const loadStations = async () => {
       try {
         const collection = database.get<Station>('stations');
-        const records = await collection.query(Q.where('line_id', lineId)).fetch();
+        const records = await collection.query().fetch();
         setStations(records);
       } catch (e) {
         console.error('Error loading stations:', e);
@@ -31,7 +31,7 @@ const StationListScreen = () => {
     loadStations();
 
     const subscription = database.get<Station>('stations')
-      .query(Q.where('line_id', lineId))
+      .query()
       .observe()
       .subscribe((records) => {
         setStations(records);

@@ -104,8 +104,8 @@ export async function syncOperators(): Promise<void> {
         collection.prepareCreate((record: TrainOperator) => {
           record._raw.id = item.id;
           record._raw.name = item.name || '';
-          record._raw.country = item.country || null;
-          record._raw.logo_url = item.logo_url || null;
+          record._raw.country = item.code || null;
+          record._raw.logo_url = null;
           record._raw.updated_at = Date.now();
         })
       );
@@ -148,7 +148,7 @@ export async function syncLines(): Promise<void> {
       const records = data.map(item =>
         collection.prepareCreate((record: RailwayLine) => {
           record._raw.id = item.id;
-          record._raw.operator_id = item.operator_id;
+          record._raw.operator_id = item.toc_id;
           record._raw.name = item.name || '';
           record._raw.code = item.code || null;
           record._raw.color = item.color || null;
@@ -191,17 +191,36 @@ export async function syncStations(): Promise<void> {
     });
 
     await database.write(async () => {
-      const records = data.map(item =>
-        collection.prepareCreate((record: Station) => {
+      const records = data.map(item => {
+        let latitude = 0;
+        let longitude = 0;
+        if (item.location && typeof item.location === 'string') {
+          const hex = item.location;
+          if (hex.startsWith('0101000020E6100000')) {
+            const coordHex = hex.substring(18);
+            const lonHex = coordHex.substring(0, 16);
+            const latHex = coordHex.substring(16, 32);
+            try {
+              const lonBuf = Buffer.from(lonHex, 'hex');
+              const latBuf = Buffer.from(latHex, 'hex');
+              longitude = lonBuf.readDoubleLE(0);
+              latitude = latBuf.readDoubleLE(0);
+            } catch (e) {
+              console.warn('Failed to parse location hex:', e);
+            }
+          }
+        }
+        
+        return collection.prepareCreate((record: Station) => {
           record._raw.id = item.id;
-          record._raw.line_id = item.line_id;
+          record._raw.line_id = '';
           record._raw.name = item.name || '';
-          record._raw.code = item.code || null;
-          record._raw.latitude = item.latitude || 0;
-          record._raw.longitude = item.longitude || 0;
+          record._raw.code = item.crs_code || null;
+          record._raw.latitude = latitude;
+          record._raw.longitude = longitude;
           record._raw.updated_at = Date.now();
-        })
-      );
+        });
+      });
       await database.batch(...records);
     });
 
