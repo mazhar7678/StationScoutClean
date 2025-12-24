@@ -56,12 +56,15 @@ export async function syncEvents(): Promise<void> {
     await refreshTicketmasterEvents();
 
     const eventsCollection = database.get<Event>('events');
+    const today = new Date().toISOString().split('T')[0];
     const { data: supabaseEvents, error } = await SupabaseClient.client
       .from('events')
       .select('*')
       .eq('source', 'ticketmaster')
       .not('image_url', 'is', null)
       .not('url', 'is', null)
+      .or(`start_date.gte.${today},start_date.is.null`)
+      .order('start_date', { ascending: true })
       .limit(5000);
 
     if (error) {
