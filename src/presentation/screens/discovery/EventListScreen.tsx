@@ -34,9 +34,25 @@ const EventListScreen = () => {
         const collection = database.get<Event>('events');
         let records = await collection.query().fetch();
         
-        if (latitude && longitude) {
+        console.log('[EventList] Total events loaded:', records.length);
+        console.log('[EventList] Station coords:', { latitude, longitude, stationName });
+        
+        const eventsWithCoords = records.filter(e => e.latitude && e.longitude);
+        console.log('[EventList] Events with coordinates:', eventsWithCoords.length);
+        
+        if (eventsWithCoords.length > 0) {
+          console.log('[EventList] Sample event coords:', {
+            name: eventsWithCoords[0].name,
+            lat: eventsWithCoords[0].latitude,
+            lng: eventsWithCoords[0].longitude
+          });
+        }
+        
+        if (latitude && longitude && eventsWithCoords.length > 0) {
           const stationLat = parseFloat(latitude);
           const stationLon = parseFloat(longitude);
+          
+          console.log('[EventList] Parsed station coords:', { stationLat, stationLon });
           
           const eventsWithDistance = records
             .filter(e => e.latitude && e.longitude)
@@ -44,11 +60,19 @@ const EventListScreen = () => {
               event: e,
               distance: haversineDistance(stationLat, stationLon, e.latitude!, e.longitude!),
             }))
-            .filter(e => e.distance <= 10)
+            .filter(e => e.distance <= 50)
             .sort((a, b) => a.distance - b.distance);
           
-          records = eventsWithDistance.map(e => e.event);
+          console.log('[EventList] Events within 50km:', eventsWithDistance.length);
+          
+          if (eventsWithDistance.length > 0) {
+            records = eventsWithDistance.map(e => e.event);
+          } else {
+            console.log('[EventList] No nearby events, showing first 50 by name');
+            records = records.slice(0, 50);
+          }
         } else {
+          console.log('[EventList] No geo filtering, showing first 50 events');
           records = records.slice(0, 50);
         }
         
@@ -123,7 +147,7 @@ const EventListScreen = () => {
             <Text style={styles.emptyTitle}>No Events Found</Text>
             <Text style={styles.emptyHint}>
               {latitude && longitude 
-                ? 'No events found within 10km of this station.'
+                ? 'No events found within 50km of this station.'
                 : 'Try selecting a different station to find nearby events.'
               }
             </Text>

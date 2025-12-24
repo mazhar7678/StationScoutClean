@@ -30,6 +30,25 @@ export async function syncEvents(): Promise<void> {
       console.log('[SyncService] No events found in Supabase to sync.');
       return;
     }
+    
+    if (supabaseEvents.length > 0) {
+      console.log('[SyncService] Sample event fields:', Object.keys(supabaseEvents[0]));
+      const sample = supabaseEvents[0];
+      console.log('[SyncService] Sample event data:', JSON.stringify({
+        venue_lat: sample.venue_lat,
+        venue_lng: sample.venue_lng,
+        lat: sample.lat,
+        lng: sample.lng,
+        latitude: sample.latitude,
+        longitude: sample.longitude,
+        location: sample.location
+      }));
+    }
+    
+    const eventsWithCoords = supabaseEvents.filter((e: any) => 
+      (e.venue_lat && e.venue_lng) || (e.lat && e.lng) || (e.latitude && e.longitude) || e.location
+    );
+    console.log('[SyncService] Events with some coordinates:', eventsWithCoords.length, 'of', supabaseEvents.length);
 
     await database.write(async () => {
       const existing = await eventsCollection.query().fetch();
@@ -38,9 +57,20 @@ export async function syncEvents(): Promise<void> {
 
     await database.write(async () => {
       const preparedRecords = supabaseEvents.map(event => {
-        let latitude: number | undefined;
-        let longitude: number | undefined;
-        if (event.location && typeof event.location === 'string') {
+        let latitude: number | null = null;
+        let longitude: number | null = null;
+        
+        const latValue = event.venue_lat ?? event.lat ?? event.latitude;
+        const lngValue = event.venue_lng ?? event.lng ?? event.longitude;
+        
+        if (latValue !== undefined && latValue !== null) {
+          latitude = typeof latValue === 'number' ? latValue : parseFloat(latValue);
+        }
+        if (lngValue !== undefined && lngValue !== null) {
+          longitude = typeof lngValue === 'number' ? lngValue : parseFloat(lngValue);
+        }
+        
+        if (latitude === null && longitude === null && event.location && typeof event.location === 'string') {
           const coordinates = event.location.replace('POINT(', '').replace(')', '').split(' ');
           if (coordinates.length === 2) {
             longitude = parseFloat(coordinates[0]);
@@ -57,8 +87,8 @@ export async function syncEvents(): Promise<void> {
           record._raw.venue_name = event.venue_name || null;
           record._raw.venue_address = event.venue_address || null;
           record._raw.source = event.source || 'unknown';
-          record._raw.latitude = latitude ?? null;
-          record._raw.longitude = longitude ?? null;
+          record._raw.latitude = latitude;
+          record._raw.longitude = longitude;
           record._raw.created_at = Date.now();
           record._raw.updated_at = Date.now();
         });
