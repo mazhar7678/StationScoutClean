@@ -24,6 +24,13 @@ export class Event extends Model {
     this._setRaw('url', value);
   }
 
+  get imageUrl(): string | null {
+    return this._getRaw('image_url') as string | null;
+  }
+  set imageUrl(value: string | null) {
+    this._setRaw('image_url', value);
+  }
+
   get startDate(): string | null {
     return this._getRaw('start_date') as string | null;
   }

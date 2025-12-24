@@ -1,6 +1,6 @@
 import { useRoute } from '@react-navigation/native';
 import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View, Linking, Pressable } from 'react-native';
+import { ScrollView, StyleSheet, View, Linking, Pressable, Image } from 'react-native';
 import { Button, Text, ActivityIndicator } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -106,6 +106,13 @@ const EventDetailScreen = ({ navigation }: { navigation: any }) => {
         actionIcon={isBookmarked ? 'bookmark' : 'bookmark-outline'}
       />
       <ScrollView contentContainerStyle={styles.content}>
+        {event.imageUrl && (
+          <Image 
+            source={{ uri: event.imageUrl }} 
+            style={styles.eventImage}
+            resizeMode="cover"
+          />
+        )}
         <View style={styles.card}>
           <Text style={styles.eventName}>{event.name}</Text>
           
@@ -193,6 +200,12 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: spacing.md,
+  },
+  eventImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: borderRadius.lg,
+    marginBottom: spacing.md,
   },
   card: {
     backgroundColor: colors.surface,

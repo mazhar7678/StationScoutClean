@@ -24,6 +24,8 @@ export async function syncEvents(): Promise<void> {
       .from('events')
       .select('*')
       .eq('source', 'ticketmaster')
+      .not('image_url', 'is', null)
+      .not('url', 'is', null)
       .limit(5000);
 
     if (error) {
@@ -102,6 +104,7 @@ export async function syncEvents(): Promise<void> {
           record._raw.venue_name = event.venue_name || null;
           record._raw.venue_address = event.venue_address || null;
           record._raw.source = event.source || 'unknown';
+          record._raw.image_url = event.image_url || null;
           record._raw.latitude = latitude;
           record._raw.longitude = longitude;
           record._raw.created_at = Date.now();

@@ -139,6 +139,7 @@ const EventListScreen = () => {
             subtitle={item.venueName || item.venueAddress || 'Event'}
             icon="calendar-star"
             iconColor={colors.accent}
+            imageUrl={item.imageUrl}
             badge={formatDate(item.startDate) || undefined}
             badgeColor={colors.primary}
             onPress={() =>

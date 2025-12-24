@@ -1,20 +1,19 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const stationScoutSchema = appSchema({
-  version: 2, // You can increment this version number if you had a different v2 before
+  version: 3,
   tables: [
-    // This is the NEW, CORRECTED schema for events
     tableSchema({
       name: 'events',
       columns: [
         { name: 'source_id', type: 'string', isIndexed: true },
         { name: 'name', type: 'string' },
         { name: 'url', type: 'string' },
+        { name: 'image_url', type: 'string', isOptional: true },
         { name: 'start_date', type: 'string', isOptional: true },
         { name: 'venue_name', type: 'string', isOptional: true },
         { name: 'venue_address', type: 'string', isOptional: true },
         { name: 'source', type: 'string' },
-        // WatermelonDB can't store a 'geography' point, so we store latitude and longitude separately.
         { name: 'latitude', type: 'number', isOptional: true },
         { name: 'longitude', type: 'number', isOptional: true },
         { name: 'created_at', type: 'number' },

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View, Image } from 'react-native';
 import { Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, borderRadius, spacing } from '../theme/colors';
@@ -12,6 +12,7 @@ type CardProps = {
   iconColor?: string;
   badge?: string;
   badgeColor?: string;
+  imageUrl?: string | null;
   rightElement?: React.ReactNode;
   onPress?: () => void;
   variant?: 'default' | 'elevated' | 'outlined';
@@ -25,6 +26,7 @@ export function Card({
   iconColor,
   badge,
   badgeColor,
+  imageUrl,
   rightElement, 
   onPress,
   variant = 'elevated'
@@ -43,8 +45,15 @@ export function Card({
       ]} 
       onPress={onPress}
     >
+      {imageUrl && (
+        <Image 
+          source={{ uri: imageUrl }} 
+          style={styles.image}
+          resizeMode="cover"
+        />
+      )}
       <View style={styles.content}>
-        {icon && (
+        {icon && !imageUrl && (
           <View style={[styles.iconContainer, { backgroundColor: (iconColor || colors.primary) + '15' }]}>
             <MaterialCommunityIcons 
               name={icon} 
@@ -93,8 +102,17 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
-    padding: spacing.md,
     marginBottom: spacing.sm,
+    overflow: 'hidden',
+  },
+  image: {
+    width: '100%',
+    height: 140,
+  },
+  content: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.md,
   },
   elevated: {
     elevation: 3,
@@ -110,10 +128,6 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.9,
     transform: [{ scale: 0.99 }],
-  },
-  content: {
-    flexDirection: 'row',
-    alignItems: 'center',
   },
   iconContainer: {
     width: 48,
