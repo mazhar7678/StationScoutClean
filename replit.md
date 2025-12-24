@@ -105,6 +105,10 @@ Scan the QR code displayed in the terminal with Expo Go app.
 - **Ticketmaster-only events**: Sync now filters for source='ticketmaster' with both URL and image_url
 - **Event images**: Added image_url to schema (v3) and Event model; Card component displays images
 - **Event filtering**: Events without booking URLs or images are excluded at Supabase query level
+- **Auto-refresh from Ticketmaster**: App calls `fetch-ticketmaster-events` Edge Function on sync
+- **Auto-sync on launch**: App syncs data on startup and every 5 minutes while active
+- **Fixed all TypeScript errors**: Resolved 27 LSP diagnostics in SyncService.ts
+- **Created TECHNICAL_AUDIT.md**: Comprehensive codebase audit with roadmap
 
 ## Supabase Schema Mapping
 The Supabase tables map to local WatermelonDB as follows:

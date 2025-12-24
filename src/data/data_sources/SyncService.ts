@@ -12,16 +12,35 @@ function isSupabaseReady(): boolean {
 
 async function refreshTicketmasterEvents(): Promise<void> {
   try {
-    console.log('[SyncService] Calling fetch-ticketmaster-events Edge Function...');
-    const { data, error } = await SupabaseClient.client.functions.invoke('fetch-ticketmaster-events');
+    console.log('[SyncService] Triggering Ticketmaster event refresh...');
     
-    if (error) {
-      console.error('[SyncService] Edge Function error:', error.message);
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseKey) {
+      console.warn('[SyncService] Supabase credentials not available for Edge Function');
+      return;
+    }
+    
+    const response = await fetch(
+      `${supabaseUrl}/functions/v1/fetch-ticketmaster-events`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+    
+    if (response.ok) {
+      const data = await response.json().catch(() => null);
+      console.log('[SyncService] Ticketmaster refresh completed:', data?.message || 'Success');
     } else {
-      console.log('[SyncService] Edge Function response:', data);
+      console.warn('[SyncService] Edge Function returned status:', response.status);
     }
   } catch (e) {
-    console.error('[SyncService] Failed to call Edge Function:', e);
+    console.warn('[SyncService] Edge Function call failed (will use cached data):', e instanceof Error ? e.message : 'Unknown error');
   }
 }
 
@@ -113,19 +132,20 @@ export async function syncEvents(): Promise<void> {
         }
 
         return eventsCollection.prepareCreate((record: Event) => {
-          record._raw.id = event.source_id || event.id;
-          record._raw.source_id = event.source_id || event.id;
-          record._raw.name = event.name || 'Unnamed Event';
-          record._raw.url = event.url || '';
-          record._raw.start_date = event.start_date || null;
-          record._raw.venue_name = event.venue_name || null;
-          record._raw.venue_address = event.venue_address || null;
-          record._raw.source = event.source || 'unknown';
-          record._raw.image_url = event.image_url || null;
-          record._raw.latitude = latitude;
-          record._raw.longitude = longitude;
-          record._raw.created_at = Date.now();
-          record._raw.updated_at = Date.now();
+          const raw = record._raw as any;
+          raw.id = event.source_id || event.id;
+          raw.source_id = event.source_id || event.id;
+          raw.name = event.name || 'Unnamed Event';
+          raw.url = event.url || '';
+          raw.start_date = event.start_date || null;
+          raw.venue_name = event.venue_name || null;
+          raw.venue_address = event.venue_address || null;
+          raw.source = event.source || 'unknown';
+          raw.image_url = event.image_url || null;
+          raw.latitude = latitude;
+          raw.longitude = longitude;
+          raw.created_at = Date.now();
+          raw.updated_at = Date.now();
         });
       });
 
@@ -167,11 +187,12 @@ export async function syncOperators(): Promise<void> {
     await database.write(async () => {
       const records = data.map(item =>
         collection.prepareCreate((record: TrainOperator) => {
-          record._raw.id = item.id;
-          record._raw.name = item.name || '';
-          record._raw.country = item.code || null;
-          record._raw.logo_url = null;
-          record._raw.updated_at = Date.now();
+          const raw = record._raw as any;
+          raw.id = item.id;
+          raw.name = item.name || '';
+          raw.country = item.code || null;
+          raw.logo_url = null;
+          raw.updated_at = Date.now();
         })
       );
       await database.batch(...records);
@@ -212,12 +233,13 @@ export async function syncLines(): Promise<void> {
     await database.write(async () => {
       const records = data.map(item =>
         collection.prepareCreate((record: RailwayLine) => {
-          record._raw.id = item.id;
-          record._raw.operator_id = item.toc_id;
-          record._raw.name = item.name || '';
-          record._raw.code = item.code || null;
-          record._raw.color = item.color || null;
-          record._raw.updated_at = Date.now();
+          const raw = record._raw as any;
+          raw.id = item.id;
+          raw.operator_id = item.toc_id;
+          raw.name = item.name || '';
+          raw.code = item.code || null;
+          raw.color = item.color || null;
+          raw.updated_at = Date.now();
         })
       );
       await database.batch(...records);
@@ -283,13 +305,14 @@ export async function syncStations(): Promise<void> {
         }
         
         return collection.prepareCreate((record: Station) => {
-          record._raw.id = item.id;
-          record._raw.line_id = '';
-          record._raw.name = item.name || '';
-          record._raw.code = item.crs_code || null;
-          record._raw.latitude = latitude;
-          record._raw.longitude = longitude;
-          record._raw.updated_at = Date.now();
+          const raw = record._raw as any;
+          raw.id = item.id;
+          raw.line_id = '';
+          raw.name = item.name || '';
+          raw.code = item.crs_code || null;
+          raw.latitude = latitude;
+          raw.longitude = longitude;
+          raw.updated_at = Date.now();
         });
       });
       await database.batch(...records);
