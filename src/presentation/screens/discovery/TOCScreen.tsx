@@ -45,7 +45,7 @@ const TOCScreen = () => {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1 }}>
+      <View style={styles.container}>
         <Appbar.Header>
           <Appbar.BackAction onPress={() => navigation.goBack()} />
           <Appbar.Content title="Train Operators" />
@@ -59,7 +59,7 @@ const TOCScreen = () => {
   }
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={styles.container}>
       <Appbar.Header>
         <Appbar.BackAction onPress={() => navigation.goBack()} />
         <Appbar.Content title="Train Operators" />
@@ -110,11 +110,16 @@ const TOCScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
   list: {
     padding: 16,
   },
   header: {
     marginBottom: 16,
+    color: '#333',
   },
   loading: {
     marginBottom: 16,
@@ -126,6 +131,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 16,
+    color: '#333',
   },
   emptyContainer: {
     alignItems: 'center',
@@ -133,6 +139,7 @@ const styles = StyleSheet.create({
   },
   empty: {
     textAlign: 'center',
+    color: '#333',
   },
   emptyHint: {
     textAlign: 'center',

@@ -1,25 +1,47 @@
 import { useNavigation, useRoute } from '@react-navigation/native';
-import React, { useMemo } from 'react';
+import { Q } from '@nozbe/watermelondb';
+import React, { useEffect, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 import { Appbar, Text } from 'react-native-paper';
 
 import { database } from '../../../data/data_sources/offline_database';
-import { EventRepository } from '../../../data/repositories/EventRepository';
+import { Station } from '../../../data/db/models';
 import { ListItem } from '../../components/ListItem';
-import { useWatermelonQuery } from '../../hooks/useWatermelonQuery';
 
 const StationListScreen = () => {
   const route = useRoute<any>();
   const { lineId, lineName } = route.params || {};
   const navigation = useNavigation<any>();
-  const repository = useMemo(() => new EventRepository(database), []);
-  const stations = useWatermelonQuery(
-    () => repository.stationsByLine(lineId),
-    [repository, lineId]
-  ) ?? [];
+  const [stations, setStations] = useState<Station[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadStations = async () => {
+      try {
+        const collection = database.get<Station>('stations');
+        const records = await collection.query(Q.where('line_id', lineId)).fetch();
+        setStations(records);
+      } catch (e) {
+        console.error('Error loading stations:', e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadStations();
+
+    const subscription = database.get<Station>('stations')
+      .query(Q.where('line_id', lineId))
+      .observe()
+      .subscribe((records) => {
+        setStations(records);
+      });
+
+    return () => subscription.unsubscribe();
+  }, [lineId]);
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={styles.container}>
       <Appbar.Header>
         <Appbar.BackAction onPress={() => navigation.goBack()} />
         <Appbar.Content title={lineName || 'Stations'} />
@@ -41,16 +63,16 @@ const StationListScreen = () => {
               navigation.navigate('Events', {
                 stationId: item.id,
                 stationName: item.name,
-                stationLat: item.latitude,
-                stationLon: item.longitude,
               })
             }
           />
         )}
         ListEmptyComponent={
-          <Text style={styles.empty} variant="bodyMedium">
-            No stations found for this line.
-          </Text>
+          !isLoading ? (
+            <Text style={styles.empty} variant="bodyMedium">
+              No stations found for this line.
+            </Text>
+          ) : null
         }
       />
     </View>
@@ -58,15 +80,21 @@ const StationListScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
   list: {
     padding: 16,
   },
   header: {
     marginBottom: 16,
+    color: '#333',
   },
   empty: {
     marginTop: 32,
     textAlign: 'center',
+    color: '#666',
   },
 });
 

@@ -1,25 +1,47 @@
 import { useNavigation, useRoute } from '@react-navigation/native';
-import React, { useMemo } from 'react';
+import { Q } from '@nozbe/watermelondb';
+import React, { useEffect, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 import { Appbar, Text } from 'react-native-paper';
 
 import { database } from '../../../data/data_sources/offline_database';
-import { EventRepository } from '../../../data/repositories/EventRepository';
+import { Event } from '../../../data/db/models';
 import { Card } from '../../components/Card';
-import { useWatermelonQuery } from '../../hooks/useWatermelonQuery';
 
 const EventListScreen = () => {
   const route = useRoute<any>();
   const { stationId, stationName } = route.params || {};
   const navigation = useNavigation<any>();
-  const repository = useMemo(() => new EventRepository(database), []);
-  const events = useWatermelonQuery(
-    () => repository.eventsByStation(stationId),
-    [repository, stationId]
-  ) ?? [];
+  const [events, setEvents] = useState<Event[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadEvents = async () => {
+      try {
+        const collection = database.get<Event>('events');
+        const records = await collection.query(Q.where('station_id', stationId)).fetch();
+        setEvents(records);
+      } catch (e) {
+        console.error('Error loading events:', e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadEvents();
+
+    const subscription = database.get<Event>('events')
+      .query(Q.where('station_id', stationId))
+      .observe()
+      .subscribe((records) => {
+        setEvents(records);
+      });
+
+    return () => subscription.unsubscribe();
+  }, [stationId]);
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={styles.container}>
       <Appbar.Header>
         <Appbar.BackAction onPress={() => navigation.goBack()} />
         <Appbar.Content title={`Events near ${stationName}`} />
@@ -40,9 +62,11 @@ const EventListScreen = () => {
           />
         )}
         ListEmptyComponent={
-          <Text style={styles.empty} variant="bodyMedium">
-            No events found near this station.
-          </Text>
+          !isLoading ? (
+            <Text style={styles.empty} variant="bodyMedium">
+              No events found near this station.
+            </Text>
+          ) : null
         }
       />
     </View>
@@ -50,12 +74,17 @@ const EventListScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
   list: {
     padding: 16,
   },
   empty: {
     marginTop: 32,
     textAlign: 'center',
+    color: '#666',
   },
 });
 
