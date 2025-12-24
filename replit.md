@@ -100,6 +100,16 @@ Scan the QR code displayed in the terminal with Expo Go app.
 - Updated HomeScreen as main entry point with app overview and navigation cards
 - Updated useWatermelonQuery hook for reactive data binding
 - Event sync working successfully (1000 records processed)
+- Fixed Supabase column mapping: `toc_id` → `operator_id` for railway lines
+- Fixed station sync to parse PostGIS hex location format using DataView (browser-compatible)
+- Added white backgrounds and dark text colors for better readability on all screens
+
+## Supabase Schema Mapping
+The Supabase tables map to local WatermelonDB as follows:
+- `train_operators` (id, name, code) → `train_operators` (id, name, country=code)
+- `railway_lines` (id, name, toc_id) → `railway_lines` (id, name, operator_id=toc_id)
+- `stations` (id, name, crs_code, location) → `stations` (id, name, code=crs_code, lat/lng parsed from location)
+- `events` (source_id, name, url, ...) → `events` (mapped directly)
 
 ## Known Limitations
 - Web mode uses LokiJS adapter (IndexedDB) instead of SQLite

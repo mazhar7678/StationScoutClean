@@ -201,10 +201,16 @@ export async function syncStations(): Promise<void> {
             const lonHex = coordHex.substring(0, 16);
             const latHex = coordHex.substring(16, 32);
             try {
-              const lonBuf = Buffer.from(lonHex, 'hex');
-              const latBuf = Buffer.from(latHex, 'hex');
-              longitude = lonBuf.readDoubleLE(0);
-              latitude = latBuf.readDoubleLE(0);
+              const hexToDouble = (hexStr: string): number => {
+                const bytes = new Uint8Array(8);
+                for (let i = 0; i < 8; i++) {
+                  bytes[i] = parseInt(hexStr.substr(i * 2, 2), 16);
+                }
+                const view = new DataView(bytes.buffer);
+                return view.getFloat64(0, true);
+              };
+              longitude = hexToDouble(lonHex);
+              latitude = hexToDouble(latHex);
             } catch (e) {
               console.warn('Failed to parse location hex:', e);
             }
