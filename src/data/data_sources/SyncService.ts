@@ -23,6 +23,7 @@ export async function syncEvents(): Promise<void> {
     const { data: supabaseEvents, error } = await SupabaseClient.client
       .from('events')
       .select('*')
+      .eq('source', 'ticketmaster')
       .limit(5000);
 
     if (error) {
