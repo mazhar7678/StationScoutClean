@@ -1,88 +1,100 @@
-// src/presentation/screens/HomeScreen.tsx
-
 import React from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Appbar, Card, Text } from 'react-native-paper';
+import { StyleSheet, View, Image } from 'react-native';
+import { Appbar, Button, Card, Text } from 'react-native-paper';
 
-// ** THIS IS THE FINAL, CORRECT IMPORT **
-// We import the HOC from its own package
-import withObservables from '@nozbe/with-observables';
-
-// All other imports are correct
-import { database } from '../../data/data_sources/offline_database';
 import { SupabaseClient } from '../../data/data_sources/supabase_client';
-import { syncEvents } from '../../data/data_sources/SyncService';
-
-const EventCard = ({ event, navigation }: { event: any, navigation: any }) => (
-  <Card
-    onPress={() => navigation.navigate('EventDetails', { eventId: event.id })}
-    style={styles.card}
-  >
-    <Card.Title
-      title={event.name}
-      subtitle={event.venueName}
-      titleNumberOfLines={2}
-    />
-    <Card.Content>
-      {event.startDate && <Text variant="bodyMedium">Date: {new Date(event.startDate).toLocaleString()}</Text>}
-    </Card.Content>
-  </Card>
-);
-
-// This is the list component that will receive the 'events' prop from the HOC
-const EventList = ({ events, navigation }: { events: any[], navigation: any }) => (
-  <FlatList
-    data={events}
-    keyExtractor={(item) => item.id}
-    renderItem={({ item }) => <EventCard event={item} navigation={navigation} />}
-    contentContainerStyle={styles.list}
-  />
-);
-
-// We enhance the EventList component by wrapping it with withObservables
-const EnhancedEventList = withObservables(
-  [], // Dependencies
-  () => ({
-    // This function returns the data we want to observe
-    events: database.get('events').query().observe(),
-  })
-)(EventList);
-
 
 export default function HomeScreen({ navigation }: { navigation: any }) {
-  const [isSyncing, setIsSyncing] = React.useState(true);
-
-  React.useEffect(() => {
-    const runSync = async () => {
-      setIsSyncing(true);
-      await syncEvents();
-      setIsSyncing(false);
-    };
-    runSync();
-  }, []);
-
   return (
-    <View style={{ flex: 1 }}>
+    <View style={styles.container}>
       <Appbar.Header>
-        <Appbar.Content title="StationScout Events" />
+        <Appbar.Content title="StationScout" />
+        <Appbar.Action icon="bookmark-outline" onPress={() => navigation.navigate('Bookmarks')} />
         <Appbar.Action icon="logout" onPress={() => SupabaseClient.signOut()} />
       </Appbar.Header>
-      {isSyncing ? (
-        <View style={styles.loaderContainer}>
-          <ActivityIndicator animating={true} size="large" />
-          <Text style={styles.loaderText}>Syncing Events...</Text>
+      
+      <View style={styles.content}>
+        <Text variant="headlineMedium" style={styles.title}>
+          Discover Events Near Train Stations
+        </Text>
+        <Text variant="bodyLarge" style={styles.subtitle}>
+          Explore local events along your favourite railway lines across the UK
+        </Text>
+
+        <Card style={styles.card} onPress={() => navigation.navigate('TOC')}>
+          <Card.Content>
+            <Text variant="titleLarge" style={styles.cardTitle}>
+              Start Exploring
+            </Text>
+            <Text variant="bodyMedium" style={styles.cardDescription}>
+              Browse train operators and discover events near stations along their routes
+            </Text>
+          </Card.Content>
+        </Card>
+
+        <Card style={styles.card} onPress={() => navigation.navigate('Bookmarks')}>
+          <Card.Content>
+            <Text variant="titleLarge" style={styles.cardTitle}>
+              My Saved Events
+            </Text>
+            <Text variant="bodyMedium" style={styles.cardDescription}>
+              View your bookmarked events - accessible even offline
+            </Text>
+          </Card.Content>
+        </Card>
+
+        <View style={styles.featureList}>
+          <Text variant="titleSmall" style={styles.featureTitle}>How it works:</Text>
+          <Text variant="bodySmall" style={styles.featureItem}>1. Select a Train Operating Company</Text>
+          <Text variant="bodySmall" style={styles.featureItem}>2. Choose a railway line to explore</Text>
+          <Text variant="bodySmall" style={styles.featureItem}>3. Browse stations along the line</Text>
+          <Text variant="bodySmall" style={styles.featureItem}>4. Discover events near each station</Text>
+          <Text variant="bodySmall" style={styles.featureItem}>5. Bookmark events for your trip</Text>
         </View>
-      ) : (
-        // We render the enhanced component
-        <EnhancedEventList navigation={navigation} />
-      )}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  loaderText: { marginTop: 10 },
-  list: { paddingVertical: 8 },
-  card: { marginVertical: 6, marginHorizontal: 16 },
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  content: {
+    flex: 1,
+    padding: 20,
+  },
+  title: {
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  subtitle: {
+    textAlign: 'center',
+    color: '#666',
+    marginBottom: 24,
+  },
+  card: {
+    marginBottom: 16,
+  },
+  cardTitle: {
+    marginBottom: 4,
+  },
+  cardDescription: {
+    color: '#666',
+  },
+  featureList: {
+    marginTop: 24,
+    padding: 16,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+  },
+  featureTitle: {
+    marginBottom: 12,
+    fontWeight: 'bold',
+  },
+  featureItem: {
+    marginBottom: 6,
+    color: '#555',
+  },
 });

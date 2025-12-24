@@ -1,9 +1,20 @@
 import { Model, Query } from '@nozbe/watermelondb';
-import { useObservable } from '@nozbe/watermelondb/hooks';
+import { useEffect, useState } from 'react';
 
 export function useWatermelonQuery<T extends Model>(
   queryFactory: () => Query<T>,
-  deps: unknown[] = [],
-) {
-  return useObservable(() => queryFactory().observeWithColumns([]), deps, []);
+  deps: unknown[] = []
+): T[] {
+  const [data, setData] = useState<T[]>([]);
+
+  useEffect(() => {
+    const query = queryFactory();
+    const subscription = query.observe().subscribe((records) => {
+      setData(records);
+    });
+
+    return () => subscription.unsubscribe();
+  }, deps);
+
+  return data;
 }

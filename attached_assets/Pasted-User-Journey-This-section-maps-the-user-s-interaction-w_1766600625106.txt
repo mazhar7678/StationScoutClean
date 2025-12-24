@@ -1,0 +1,23 @@
+User Journey**
+
+This section maps the user's interaction with the app, providing a narrative for the AI to understand user goals and motivations.
+
+#### **3.1. User Personas**
+
+*   **Priya, the Daily Commuter:** Uses the app to find quick things to do near her work or home station after work. Values speed and relevance.
+*   **David, the Weekend Explorer:** Plans weekend trips with his family. Uses the app to discover events along a chosen railway line. Values detailed information and the ability to save and share events.
+*   **Chloe, the Tourist:** Visiting the UK and using the train to travel. Uses the app to find attractions and events near major train stations. Values map-based discovery and clear directions.
+
+#### **3.2. User Journey Map: David, the Weekend Explorer**
+
+| Stage | User Actions | Touchpoints | User Thoughts/Feelings | Opportunities |
+| :--- | :--- | :--- | :--- | :--- |
+| **Discovery** | Hears about the app from a travel blog. Searches for "UK train station events" on the App Store. | App Store Listing | "This looks perfect for planning our trips." | Compelling screenshots and a clear app description are crucial. |
+| **Onboarding** | Downloads and opens the app. Is greeted with a short, engaging onboarding flow explaining the key features (map view, bookmarking). | Onboarding Screens | "This seems easy to use." | Highlight the value proposition immediately. Ask for essential permissions (location, notifications) with clear explanations. |
+| **Planning a Trip** | Selects his starting Train Operating Company. Chooses a scenic railway line. | Home Screen, TOC List, Line List | "I wonder what's happening along the coast this weekend." | Provide rich information about each line (e.g., key stops, scenic highlights). |
+| **Exploring Stations & Events** | Scrolls through the list of stations on the line. Uses the map view to see their geographic location. Taps on a station and sees a list of upcoming events. | Station List, Map View, Event List | "Oh, a food festival near Brighton! The kids would love that." | The map view is key for spatial understanding. Event counts on the station list help prioritize exploration. |
+| **Saving & Sharing** | Bookmarks the food festival and a couple of other interesting events. Shares the event details with his partner. | Event Detail Screen, Bookmark Function, Share Sheet | "I'll save these so I don't forget. I need to send this to my wife." | Make bookmarking and sharing effortless. Allow adding personal notes to bookmarks. |
+| **Pre-Travel** | Receives a push notification a day before the event: "Your bookmarked event, the Brighton Food Festival, is tomorrow!" | Push Notification | "Great reminder! I need to check the train times." | Timely and relevant push notifications enhance the user experience and drive re-engagement. |
+| **On the Day** | While on the train, he opens the app to review his bookmarked events. The app works perfectly even with a spotty connection. | Bookmarks Screen (Offline) | "Good thing this works offline, the signal is terrible here." | Offline-first architecture is a key delighter. |
+| **Advocacy** | Has a great weekend. Leaves a positive review on the App Store and recommends the app to a friend. | App Store, Word of Mouth | "This app made our trip so much better." | Prompt for a review after a positive interaction (e.g., after a bookmarked event has passed). |
+

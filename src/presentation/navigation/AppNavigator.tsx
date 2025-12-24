@@ -1,5 +1,3 @@
-// src/presentation/navigation/AppNavigator.tsx
-
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { AuthChangeEvent, Session } from '@supabase/supabase-js';
@@ -9,8 +7,14 @@ import { ActivityIndicator } from 'react-native-paper';
 
 import { SupabaseClient } from '../../data/data_sources/supabase_client';
 import LoginScreen from '../screens/auth/LoginScreen';
-import EventDetailsScreen from '../screens/discovery/EventDetailScreen';
+import SignUpScreen from '../screens/auth/SignUpScreen';
 import HomeScreen from '../screens/HomeScreen';
+import BookmarksScreen from '../screens/BookmarksScreen';
+import TOCScreen from '../screens/discovery/TOCScreen';
+import LineScreen from '../screens/discovery/LineScreen';
+import StationListScreen from '../screens/discovery/StationListScreen';
+import EventListScreen from '../screens/discovery/EventListScreen';
+import EventDetailScreen from '../screens/discovery/EventDetailScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -47,12 +51,18 @@ export default function AppNavigator() {
         {session ? (
           <>
             <Stack.Screen name="Home" component={HomeScreen} />
-            <Stack.Screen name="EventDetails" component={EventDetailsScreen} />
+            <Stack.Screen name="Bookmarks" component={BookmarksScreen} />
+            <Stack.Screen name="TOC" component={TOCScreen} />
+            <Stack.Screen name="Lines" component={LineScreen} />
+            <Stack.Screen name="Stations" component={StationListScreen} />
+            <Stack.Screen name="Events" component={EventListScreen} />
+            <Stack.Screen name="EventDetail" component={EventDetailScreen} />
           </>
         ) : (
-          // ** THIS IS THE FIX **
-          // The component prop should be the component itself, not a function that returns it.
-          <Stack.Screen name="Login" component={LoginScreen} />
+          <>
+            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="SignUp" component={SignUpScreen} />
+          </>
         )}
       </Stack.Navigator>
     </NavigationContainer>
