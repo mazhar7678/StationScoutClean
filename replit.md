@@ -115,3 +115,11 @@ The Supabase tables map to local WatermelonDB as follows:
 - Web mode uses LokiJS adapter (IndexedDB) instead of SQLite
 - Some React Native animations fall back to JS on web
 - Tunnel mode required for mobile device access in Replit environment
+- Supabase schema has no station-to-line relationship, so StationListScreen shows all stations
+- Events are filtered by geographic proximity (10km radius) from selected station coordinates
+
+## UI Design
+- Brand colors: Navy (#1E3A5F) and Orange (#F97316) 
+- Modern card-based layouts with icons and badges
+- GradientHeader component for consistent screen headers
+- Theme file: src/presentation/theme/colors.ts

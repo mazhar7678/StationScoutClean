@@ -1,16 +1,17 @@
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { Q } from '@nozbe/watermelondb';
 import React, { useEffect, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
-import { Appbar, Text } from 'react-native-paper';
+import { ActivityIndicator, Text } from 'react-native-paper';
 
 import { database } from '../../../data/data_sources/offline_database';
 import { Station } from '../../../data/db/models';
-import { ListItem } from '../../components/ListItem';
+import { Card } from '../../components/Card';
+import { GradientHeader } from '../../components/GradientHeader';
+import { colors, spacing } from '../../theme/colors';
 
 const StationListScreen = () => {
   const route = useRoute<any>();
-  const { lineId, lineName } = route.params || {};
+  const { lineName } = route.params || {};
   const navigation = useNavigation<any>();
   const [stations, setStations] = useState<Station[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -38,41 +39,57 @@ const StationListScreen = () => {
       });
 
     return () => subscription.unsubscribe();
-  }, [lineId]);
+  }, []);
+
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        <GradientHeader
+          title="All Stations"
+          subtitle={lineName ? `Exploring ${lineName}` : 'Find events near stations'}
+          onBack={() => navigation.goBack()}
+        />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      <Appbar.Header>
-        <Appbar.BackAction onPress={() => navigation.goBack()} />
-        <Appbar.Content title={lineName || 'Stations'} />
-      </Appbar.Header>
+      <GradientHeader
+        title="All Stations"
+        subtitle={`${stations.length} stations available`}
+        onBack={() => navigation.goBack()}
+      />
       <FlatList
         data={stations}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.list}
-        ListHeaderComponent={
-          <Text variant="titleMedium" style={styles.header}>
-            Select a Station
-          </Text>
-        }
         renderItem={({ item }) => (
-          <ListItem
+          <Card
             title={item.name}
-            description={item.code ?? '—'}
+            subtitle={item.code || 'Station'}
+            icon="map-marker"
+            iconColor={colors.accent}
             onPress={() =>
               navigation.navigate('Events', {
                 stationId: item.id,
                 stationName: item.name,
+                latitude: item.latitude,
+                longitude: item.longitude,
               })
             }
           />
         )}
         ListEmptyComponent={
-          !isLoading ? (
-            <Text style={styles.empty} variant="bodyMedium">
-              No stations found for this line.
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyTitle}>No Stations Found</Text>
+            <Text style={styles.emptyHint}>
+              Stations will appear here after syncing data.
             </Text>
-          ) : null
+          </View>
         }
       />
     </View>
@@ -82,19 +99,32 @@ const StationListScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.background,
   },
   list: {
-    padding: 16,
+    padding: spacing.md,
+    paddingTop: spacing.lg,
   },
-  header: {
-    marginBottom: 16,
-    color: '#333',
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  empty: {
-    marginTop: 32,
+  emptyContainer: {
+    alignItems: 'center',
+    marginTop: spacing.xl,
+    paddingHorizontal: spacing.lg,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: spacing.sm,
+  },
+  emptyHint: {
     textAlign: 'center',
-    color: '#666',
+    color: colors.textSecondary,
+    lineHeight: 22,
   },
 });
 

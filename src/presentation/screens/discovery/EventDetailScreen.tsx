@@ -1,16 +1,20 @@
 import { useRoute } from '@react-navigation/native';
-import React, { useMemo, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View, Linking } from 'react-native';
-import { Appbar, Button, Card, Chip, Text, IconButton } from 'react-native-paper';
+import React, { useEffect, useState } from 'react';
+import { ScrollView, StyleSheet, View, Linking, Pressable } from 'react-native';
+import { Button, Text, ActivityIndicator } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { database } from '../../../data/data_sources/offline_database';
 import { Event, Bookmark } from '../../../data/db/models';
+import { GradientHeader } from '../../components/GradientHeader';
+import { colors, spacing, borderRadius } from '../../theme/colors';
 
 const EventDetailScreen = ({ navigation }: { navigation: any }) => {
   const route = useRoute<any>();
   const { eventId } = route.params || {};
   const [event, setEvent] = useState<Event | null>(null);
   const [isBookmarked, setIsBookmarked] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const loadEvent = async () => {
@@ -25,6 +29,8 @@ const EventDetailScreen = ({ navigation }: { navigation: any }) => {
         setIsBookmarked(bookmarked);
       } catch (e) {
         console.error('Error loading event:', e);
+      } finally {
+        setIsLoading(false);
       }
     };
     loadEvent();
@@ -60,15 +66,31 @@ const EventDetailScreen = ({ navigation }: { navigation: any }) => {
     }
   };
 
-  if (!event) {
+  const formatDate = (dateStr: string | null): string => {
+    if (!dateStr) return 'Date TBC';
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('en-GB', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+    } catch {
+      return 'Date TBC';
+    }
+  };
+
+  if (isLoading || !event) {
     return (
       <View style={styles.container}>
-        <Appbar.Header>
-          <Appbar.BackAction onPress={() => navigation.goBack()} />
-          <Appbar.Content title="Loading..." />
-        </Appbar.Header>
+        <GradientHeader
+          title="Event Details"
+          onBack={() => navigation.goBack()}
+        />
         <View style={styles.loadingContainer}>
-          <Text>Loading event details...</Text>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading event details...</Text>
         </View>
       </View>
     );
@@ -76,74 +98,79 @@ const EventDetailScreen = ({ navigation }: { navigation: any }) => {
 
   return (
     <View style={styles.container}>
-      <Appbar.Header>
-        <Appbar.BackAction onPress={() => navigation.goBack()} />
-        <Appbar.Content title="Event Details" />
-        <Appbar.Action
-          icon={isBookmarked ? 'bookmark' : 'bookmark-outline'}
-          onPress={handleBookmark}
-        />
-      </Appbar.Header>
+      <GradientHeader
+        title="Event Details"
+        onBack={() => navigation.goBack()}
+        onAction={handleBookmark}
+        actionIcon={isBookmarked ? 'bookmark' : 'bookmark-outline'}
+      />
       <ScrollView contentContainerStyle={styles.content}>
-        <Card style={styles.card}>
-          <Card.Content>
-            <Text variant="headlineMedium" style={styles.title}>
-              {event.name}
-            </Text>
-            
-            {event.startDate && (
-              <Chip icon="calendar" style={styles.chip}>
-                {new Date(event.startDate).toLocaleDateString('en-GB', {
-                  weekday: 'long',
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                })}
-              </Chip>
-            )}
+        <View style={styles.card}>
+          <Text style={styles.eventName}>{event.name}</Text>
+          
+          <View style={styles.infoRow}>
+            <View style={styles.iconContainer}>
+              <MaterialCommunityIcons name="calendar" size={20} color={colors.accent} />
+            </View>
+            <View style={styles.infoContent}>
+              <Text style={styles.infoLabel}>Date</Text>
+              <Text style={styles.infoValue}>{formatDate(event.startDate)}</Text>
+            </View>
+          </View>
 
-            {event.venueName && (
-              <View style={styles.section}>
-                <Text variant="titleSmall" style={styles.label}>Venue</Text>
-                <Text variant="bodyLarge">{event.venueName}</Text>
+          {event.venueName && (
+            <View style={styles.infoRow}>
+              <View style={styles.iconContainer}>
+                <MaterialCommunityIcons name="map-marker" size={20} color={colors.accent} />
               </View>
-            )}
-
-            {event.venueAddress && (
-              <View style={styles.section}>
-                <Text variant="titleSmall" style={styles.label}>Address</Text>
-                <Text variant="bodyMedium">{event.venueAddress}</Text>
+              <View style={styles.infoContent}>
+                <Text style={styles.infoLabel}>Venue</Text>
+                <Text style={styles.infoValue}>{event.venueName}</Text>
               </View>
-            )}
+            </View>
+          )}
 
-            {event.source && (
-              <View style={styles.section}>
-                <Text variant="titleSmall" style={styles.label}>Source</Text>
-                <Text variant="bodySmall" style={styles.source}>{event.source}</Text>
+          {event.venueAddress && (
+            <View style={styles.infoRow}>
+              <View style={styles.iconContainer}>
+                <MaterialCommunityIcons name="home" size={20} color={colors.accent} />
               </View>
-            )}
-          </Card.Content>
-        </Card>
+              <View style={styles.infoContent}>
+                <Text style={styles.infoLabel}>Address</Text>
+                <Text style={styles.infoValue}>{event.venueAddress}</Text>
+              </View>
+            </View>
+          )}
 
-        {event.url && (
-          <Button
-            mode="contained"
-            onPress={handleOpenUrl}
-            style={styles.button}
-            icon="open-in-new"
+          {event.source && (
+            <View style={styles.sourceContainer}>
+              <Text style={styles.sourceText}>via {event.source}</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.actions}>
+          {event.url && (
+            <Pressable style={styles.primaryButton} onPress={handleOpenUrl}>
+              <MaterialCommunityIcons name="open-in-new" size={20} color="#fff" />
+              <Text style={styles.primaryButtonText}>View Event Website</Text>
+            </Pressable>
+          )}
+
+          <Pressable 
+            style={[styles.secondaryButton, isBookmarked && styles.bookmarkedButton]} 
+            onPress={handleBookmark}
           >
-            View Event Website
-          </Button>
-        )}
-
-        <Button
-          mode={isBookmarked ? 'outlined' : 'contained-tonal'}
-          onPress={handleBookmark}
-          style={styles.button}
-          icon={isBookmarked ? 'bookmark-remove' : 'bookmark-plus'}
-        >
-          {isBookmarked ? 'Remove Bookmark' : 'Save to Bookmarks'}
-        </Button>
+            <MaterialCommunityIcons 
+              name={isBookmarked ? 'bookmark-remove' : 'bookmark-plus'} 
+              size={20} 
+              color={isBookmarked ? colors.error : colors.primary} 
+            />
+            <Text style={[styles.secondaryButtonText, isBookmarked && styles.bookmarkedText]}>
+              {isBookmarked ? 'Remove Bookmark' : 'Save to Bookmarks'}
+            </Text>
+          </Pressable>
+        </View>
       </ScrollView>
     </View>
   );
@@ -152,38 +179,117 @@ const EventDetailScreen = ({ navigation }: { navigation: any }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  loadingText: {
+    marginTop: spacing.md,
+    color: colors.textSecondary,
+  },
   content: {
-    padding: 16,
+    padding: spacing.md,
   },
   card: {
-    marginBottom: 16,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+    elevation: 2,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 8,
   },
-  title: {
-    marginBottom: 16,
+  eventName: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: spacing.lg,
+    lineHeight: 32,
   },
-  chip: {
-    alignSelf: 'flex-start',
-    marginBottom: 16,
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: spacing.md,
   },
-  section: {
-    marginTop: 16,
+  iconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.accent + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.md,
   },
-  label: {
-    color: '#666',
-    marginBottom: 4,
+  infoContent: {
+    flex: 1,
   },
-  source: {
-    color: '#999',
+  infoLabel: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginBottom: 2,
   },
-  button: {
-    marginBottom: 12,
+  infoValue: {
+    fontSize: 16,
+    color: colors.text,
+    fontWeight: '500',
+  },
+  sourceContainer: {
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  sourceText: {
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  actions: {
+    marginTop: spacing.sm,
+  },
+  primaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.sm,
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 16,
+    marginLeft: spacing.sm,
+  },
+  secondaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  bookmarkedButton: {
+    borderColor: colors.error + '50',
+    backgroundColor: colors.error + '08',
+  },
+  secondaryButtonText: {
+    color: colors.primary,
+    fontWeight: '600',
+    fontSize: 16,
+    marginLeft: spacing.sm,
+  },
+  bookmarkedText: {
+    color: colors.error,
   },
 });
 

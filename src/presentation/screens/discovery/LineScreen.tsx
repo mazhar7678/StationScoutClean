@@ -2,11 +2,13 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { Q } from '@nozbe/watermelondb';
 import React, { useEffect, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
-import { Appbar, Text } from 'react-native-paper';
+import { ActivityIndicator, Text } from 'react-native-paper';
 
 import { database } from '../../../data/data_sources/offline_database';
 import { RailwayLine } from '../../../data/db/models';
-import { ListItem } from '../../components/ListItem';
+import { Card } from '../../components/Card';
+import { GradientHeader } from '../../components/GradientHeader';
+import { colors, spacing } from '../../theme/colors';
 
 const LineScreen = () => {
   const route = useRoute<any>();
@@ -40,39 +42,54 @@ const LineScreen = () => {
     return () => subscription.unsubscribe();
   }, [operatorId]);
 
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        <GradientHeader
+          title="Railway Lines"
+          subtitle={operatorName || 'Select a line'}
+          onBack={() => navigation.goBack()}
+        />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      <Appbar.Header>
-        <Appbar.BackAction onPress={() => navigation.goBack()} />
-        <Appbar.Content title={operatorName || 'Railway Lines'} />
-      </Appbar.Header>
+      <GradientHeader
+        title="Railway Lines"
+        subtitle={operatorName || 'Select a line'}
+        onBack={() => navigation.goBack()}
+      />
       <FlatList
         data={lines}
-        contentContainerStyle={styles.list}
         keyExtractor={item => item.id}
-        ListHeaderComponent={
-          <Text variant="titleMedium" style={styles.header}>
-            Select a Railway Line
-          </Text>
-        }
+        contentContainerStyle={styles.list}
         renderItem={({ item }) => (
-          <ListItem
+          <Card
             title={item.name}
-            description={item.code ?? item.color ?? '—'}
+            subtitle={item.code || 'Railway Line'}
+            icon="subway-variant"
+            iconColor={item.color || colors.accent}
             onPress={() =>
               navigation.navigate('Stations', {
                 lineId: item.id,
                 lineName: item.name,
+                operatorId: operatorId,
               })
             }
           />
         )}
         ListEmptyComponent={
-          !isLoading ? (
-            <Text style={styles.empty} variant="bodyMedium">
-              No lines found for this operator.
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyTitle}>No Lines Found</Text>
+            <Text style={styles.emptyHint}>
+              No railway lines are available for this operator yet.
             </Text>
-          ) : null
+          </View>
         }
       />
     </View>
@@ -82,19 +99,32 @@ const LineScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.background,
   },
   list: {
-    padding: 16,
+    padding: spacing.md,
+    paddingTop: spacing.lg,
   },
-  header: {
-    marginBottom: 16,
-    color: '#333',
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  empty: {
-    marginTop: 32,
+  emptyContainer: {
+    alignItems: 'center',
+    marginTop: spacing.xl,
+    paddingHorizontal: spacing.lg,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: spacing.sm,
+  },
+  emptyHint: {
     textAlign: 'center',
-    color: '#666',
+    color: colors.textSecondary,
+    lineHeight: 22,
   },
 });
 

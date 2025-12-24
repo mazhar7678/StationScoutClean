@@ -1,12 +1,43 @@
 import { useNavigation } from '@react-navigation/native';
 import React, { useEffect, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Appbar, Text } from 'react-native-paper';
+import { ActivityIndicator, Text } from 'react-native-paper';
 
 import { database } from '../../../data/data_sources/offline_database';
 import { syncAll } from '../../../data/data_sources/SyncService';
 import { TrainOperator } from '../../../data/db/models';
 import { Card } from '../../components/Card';
+import { GradientHeader } from '../../components/GradientHeader';
+import { colors, spacing } from '../../theme/colors';
+
+const operatorIcons: Record<string, string> = {
+  'SWR': 'train',
+  'GWR': 'train-variant',
+  'LNER': 'train',
+  'AWC': 'train',
+  'XC': 'swap-horizontal',
+  'EMR': 'train',
+  'SE': 'train',
+  'TL': 'train-car',
+  'GTR': 'train',
+  'NR': 'train',
+  'TPE': 'train',
+  'SR': 'train',
+  'C2C': 'train-car',
+  'LO': 'subway',
+  'NTL': 'train',
+  'GA': 'train',
+  'HT': 'train',
+  'TfW': 'train',
+  'MR': 'tram',
+  'ES': 'train',
+  'default': 'train',
+};
+
+const getOperatorIcon = (code: string | null): string => {
+  if (!code) return operatorIcons.default;
+  return operatorIcons[code] || operatorIcons.default;
+};
 
 const TOCScreen = () => {
   const navigation = useNavigation<any>();
@@ -46,12 +77,13 @@ const TOCScreen = () => {
   if (isLoading) {
     return (
       <View style={styles.container}>
-        <Appbar.Header>
-          <Appbar.BackAction onPress={() => navigation.goBack()} />
-          <Appbar.Content title="Train Operators" />
-        </Appbar.Header>
+        <GradientHeader
+          title="Train Operators"
+          subtitle="Discover events along your route"
+          onBack={() => navigation.goBack()}
+        />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Loading operators...</Text>
         </View>
       </View>
@@ -60,30 +92,39 @@ const TOCScreen = () => {
 
   return (
     <View style={styles.container}>
-      <Appbar.Header>
-        <Appbar.BackAction onPress={() => navigation.goBack()} />
-        <Appbar.Content title="Train Operators" />
-        <Appbar.Action icon="refresh" onPress={handleSync} />
-      </Appbar.Header>
+      <GradientHeader
+        title="Train Operators"
+        subtitle="Discover events along your route"
+        onBack={() => navigation.goBack()}
+        onAction={handleSync}
+        actionIcon="refresh"
+      />
       <FlatList
         contentContainerStyle={styles.list}
         data={operators}
         keyExtractor={item => item.id}
         refreshControl={
-          <RefreshControl refreshing={isSyncing} onRefresh={handleSync} />
+          <RefreshControl 
+            refreshing={isSyncing} 
+            onRefresh={handleSync}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
         }
         ListHeaderComponent={
-          <>
-            <Text variant="titleLarge" style={styles.header}>
-              Pick a Train Operating Company
-            </Text>
-            {isSyncing ? <ActivityIndicator style={styles.loading} /> : null}
-          </>
+          isSyncing ? (
+            <View style={styles.syncingBanner}>
+              <ActivityIndicator size="small" color={colors.accent} />
+              <Text style={styles.syncingText}>Syncing data...</Text>
+            </View>
+          ) : null
         }
         renderItem={({ item }) => (
           <Card
             title={item.name}
-            subtitle={item.country ?? '—'}
+            subtitle={item.country ?? 'UK Train Operator'}
+            icon={getOperatorIcon(item.country) as any}
+            iconColor={colors.primary}
             onPress={() =>
               navigation.navigate('Lines', {
                 operatorId: item.id,
@@ -95,11 +136,9 @@ const TOCScreen = () => {
         ListEmptyComponent={
           !isSyncing ? (
             <View style={styles.emptyContainer}>
-              <Text style={styles.empty} variant="bodyMedium">
-                No operators found.
-              </Text>
-              <Text style={styles.emptyHint} variant="bodySmall">
-                Tap the refresh icon or pull down to sync data from the server.
+              <Text style={styles.emptyTitle}>No Operators Found</Text>
+              <Text style={styles.emptyHint}>
+                Pull down or tap the refresh icon to sync data from the server.
               </Text>
             </View>
           ) : null
@@ -112,17 +151,11 @@ const TOCScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.background,
   },
   list: {
-    padding: 16,
-  },
-  header: {
-    marginBottom: 16,
-    color: '#333',
-  },
-  loading: {
-    marginBottom: 16,
+    padding: spacing.md,
+    paddingTop: spacing.lg,
   },
   loadingContainer: {
     flex: 1,
@@ -130,21 +163,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    marginTop: 16,
-    color: '#333',
+    marginTop: spacing.md,
+    color: colors.textSecondary,
+  },
+  syncingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary + '10',
+    padding: spacing.sm,
+    borderRadius: 8,
+    marginBottom: spacing.md,
+  },
+  syncingText: {
+    marginLeft: spacing.sm,
+    color: colors.primary,
+    fontWeight: '500',
   },
   emptyContainer: {
     alignItems: 'center',
-    marginTop: 32,
+    marginTop: spacing.xl,
+    paddingHorizontal: spacing.lg,
   },
-  empty: {
-    textAlign: 'center',
-    color: '#333',
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: spacing.sm,
   },
   emptyHint: {
     textAlign: 'center',
-    marginTop: 8,
-    color: '#666',
+    color: colors.textSecondary,
+    lineHeight: 22,
   },
 });
 

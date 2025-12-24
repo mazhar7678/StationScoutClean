@@ -1,47 +1,160 @@
 import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { colors, borderRadius, spacing } from '../theme/colors';
 
 type CardProps = {
   title: string;
   subtitle?: string;
+  description?: string;
+  icon?: keyof typeof MaterialCommunityIcons.glyphMap;
+  iconColor?: string;
+  badge?: string;
+  badgeColor?: string;
   rightElement?: React.ReactNode;
   onPress?: () => void;
+  variant?: 'default' | 'elevated' | 'outlined';
 };
 
-export function Card({ title, subtitle, rightElement, onPress }: CardProps) {
+export function Card({ 
+  title, 
+  subtitle, 
+  description,
+  icon,
+  iconColor,
+  badge,
+  badgeColor,
+  rightElement, 
+  onPress,
+  variant = 'elevated'
+}: CardProps) {
+  const containerStyle = [
+    styles.container,
+    variant === 'elevated' && styles.elevated,
+    variant === 'outlined' && styles.outlined,
+  ];
+
   return (
-    <Pressable style={styles.container} onPress={onPress}>
-      <Text variant="titleMedium">{title}</Text>
-      {subtitle ? (
-        <Text variant="bodySmall" style={styles.subtitle}>
-          {subtitle}
-        </Text>
-      ) : null}
-      {rightElement ? <View style={styles.right}>{rightElement}</View> : null}
+    <Pressable 
+      style={({ pressed }) => [
+        containerStyle,
+        pressed && styles.pressed,
+      ]} 
+      onPress={onPress}
+    >
+      <View style={styles.content}>
+        {icon && (
+          <View style={[styles.iconContainer, { backgroundColor: (iconColor || colors.primary) + '15' }]}>
+            <MaterialCommunityIcons 
+              name={icon} 
+              size={24} 
+              color={iconColor || colors.primary} 
+            />
+          </View>
+        )}
+        <View style={styles.textContainer}>
+          <View style={styles.titleRow}>
+            <Text variant="titleMedium" style={styles.title} numberOfLines={1}>
+              {title}
+            </Text>
+            {badge && (
+              <View style={[styles.badge, { backgroundColor: badgeColor || colors.accent }]}>
+                <Text style={styles.badgeText}>{badge}</Text>
+              </View>
+            )}
+          </View>
+          {subtitle && (
+            <Text variant="bodySmall" style={styles.subtitle} numberOfLines={1}>
+              {subtitle}
+            </Text>
+          )}
+          {description && (
+            <Text variant="bodySmall" style={styles.description} numberOfLines={2}>
+              {description}
+            </Text>
+          )}
+        </View>
+        {rightElement ? (
+          <View style={styles.right}>{rightElement}</View>
+        ) : (
+          <MaterialCommunityIcons 
+            name="chevron-right" 
+            size={24} 
+            color={colors.textMuted} 
+          />
+        )}
+      </View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 1 },
-    shadowRadius: 2,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  elevated: {
+    elevation: 3,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 8,
+  },
+  outlined: {
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  pressed: {
+    opacity: 0.9,
+    transform: [{ scale: 0.99 }],
+  },
+  content: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: borderRadius.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.md,
+  },
+  textContainer: {
+    flex: 1,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  title: {
+    color: colors.text,
+    fontWeight: '600',
+    flex: 1,
   },
   subtitle: {
-    marginTop: 4,
-    color: '#555',
+    marginTop: 2,
+    color: colors.textSecondary,
+  },
+  description: {
+    marginTop: spacing.xs,
+    color: colors.textMuted,
+  },
+  badge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.full,
+    marginLeft: spacing.sm,
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '600',
   },
   right: {
-    position: 'absolute',
-    right: 16,
-    top: 16,
+    marginLeft: spacing.sm,
   },
 });

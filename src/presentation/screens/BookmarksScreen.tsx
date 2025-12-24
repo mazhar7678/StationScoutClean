@@ -1,11 +1,14 @@
 import { useNavigation } from '@react-navigation/native';
 import React, { useEffect, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
-import { Appbar, Text } from 'react-native-paper';
+import { Text, ActivityIndicator } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { database } from '../../data/data_sources/offline_database';
 import { Bookmark, Event } from '../../data/db/models';
 import { Card } from '../components/Card';
+import { GradientHeader } from '../components/GradientHeader';
+import { colors, spacing } from '../theme/colors';
 
 type BookmarkedEvent = {
   bookmarkId: string;
@@ -46,11 +49,42 @@ const BookmarksScreen = () => {
     return unsubscribe;
   }, [navigation]);
 
+  const formatDate = (dateStr: string | null): string => {
+    if (!dateStr) return '';
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('en-GB', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+      });
+    } catch {
+      return '';
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <GradientHeader
+          title="Saved Events"
+          subtitle="Your bookmarked events"
+          onBack={() => navigation.goBack()}
+        />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      </View>
+    );
+  }
+
   return (
-    <View style={{ flex: 1 }}>
-      <Appbar.Header>
-        <Appbar.Content title="Saved Events" />
-      </Appbar.Header>
+    <View style={styles.container}>
+      <GradientHeader
+        title="Saved Events"
+        subtitle={`${bookmarkedEvents.length} event${bookmarkedEvents.length !== 1 ? 's' : ''} saved`}
+        onBack={() => navigation.goBack()}
+      />
       <FlatList
         data={bookmarkedEvents}
         keyExtractor={item => item.bookmarkId}
@@ -58,7 +92,11 @@ const BookmarksScreen = () => {
         renderItem={({ item }) => (
           <Card
             title={item.event.name}
-            subtitle={item.event.venueName ?? item.event.venueAddress ?? '—'}
+            subtitle={item.event.venueName ?? item.event.venueAddress ?? 'Event'}
+            icon="bookmark"
+            iconColor={colors.accent}
+            badge={formatDate(item.event.startDate) || undefined}
+            badgeColor={colors.primary}
             onPress={() =>
               navigation.navigate('EventDetail', {
                 eventId: item.event.id,
@@ -67,16 +105,15 @@ const BookmarksScreen = () => {
           />
         )}
         ListEmptyComponent={
-          !loading ? (
-            <View style={styles.emptyContainer}>
-              <Text variant="titleMedium" style={styles.emptyTitle}>
-                No Saved Events
-              </Text>
-              <Text variant="bodyMedium" style={styles.emptyText}>
-                Bookmark events you're interested in and they'll appear here for easy access, even offline.
-              </Text>
+          <View style={styles.emptyContainer}>
+            <View style={styles.emptyIcon}>
+              <MaterialCommunityIcons name="bookmark-outline" size={48} color={colors.textMuted} />
             </View>
-          ) : null
+            <Text style={styles.emptyTitle}>No Saved Events</Text>
+            <Text style={styles.emptyText}>
+              Bookmark events you're interested in and they'll appear here for easy access, even offline.
+            </Text>
+          </View>
         }
       />
     </View>
@@ -84,24 +121,47 @@ const BookmarksScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
   list: {
-    padding: 16,
+    padding: spacing.md,
+    paddingTop: spacing.lg,
     flexGrow: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 32,
-    paddingTop: 100,
+    paddingHorizontal: spacing.xl,
+    paddingTop: 80,
+  },
+  emptyIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.surfaceVariant,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
   },
   emptyTitle: {
-    marginBottom: 8,
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: spacing.sm,
     textAlign: 'center',
   },
   emptyText: {
     textAlign: 'center',
-    color: '#666',
+    color: colors.textSecondary,
+    lineHeight: 22,
   },
 });
 
