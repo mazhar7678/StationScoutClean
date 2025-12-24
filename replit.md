@@ -152,10 +152,6 @@ npm run build:production
 - Events filtered to Ticketmaster source only
 - 50km radius for event proximity filtering
 
-## Supabase Edge Function
-
-The `refresh-ticketmaster-events` Edge Function fetches live events from Ticketmaster API and updates the database. See `supabase/DEPLOY_EDGE_FUNCTION.md` for deployment instructions.
-
 ## Deployment
 
 ### EAS Build Profiles
