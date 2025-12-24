@@ -1,0 +1,131 @@
+Role:
+You are a senior mobile app architect, backend engineer, QA lead, and technical product manager combined.
+Your task is to fully understand, audit, and plan the completion of this mobile app project.
+________________________________________
+🎯 PRIMARY GOAL
+Take stock of every development file in this repository and create a clear, step by step roadmap to:
+1.	Fully build
+2.	Fully test
+3.	Fully deploy
+the mobile app into a production ready state.
+Assume this project is unfinished, messy, and possibly broken.
+________________________________________
+🔍 WHAT YOU MUST DO (IN ORDER)
+1️⃣ FULL CODEBASE AUDIT
+Carefully review every file and every line of code, including but not limited to:
+•	Frontend (mobile app UI)
+•	Backend services
+•	APIs and endpoints
+•	Database schemas and queries
+•	Authentication and authorization
+•	Configuration files
+•	Environment variables
+•	Build and deployment scripts
+•	Test files (or missing tests)
+✅ Do not skip files
+✅ Do not assume intent — infer it from the code
+________________________________________
+2️⃣ IDENTIFY ISSUES & PROBLEMS
+Create a clear list of:
+•	❌ Bugs or broken logic
+•	⚠️ Code smells or risky patterns
+•	🧹 Redundant or unused code
+•	🔁 Duplicate logic or components
+•	🛣️ Redundant or unused API routes/endpoints
+•	🔌 Broken or incomplete backend integrations
+•	🔐 Security issues (auth, secrets, permissions)
+•	🐢 Performance problems
+•	📦 Missing dependencies or misconfigurations
+Explain each issue in plain English, as if teaching a beginner.
+________________________________________
+3️⃣ BACKEND & INTEGRATION REVIEW
+For the backend:
+•	List all endpoints and routes
+•	Explain what each one does
+•	Identify: 
+o	Endpoints that are unused
+o	Endpoints that do the same thing
+o	Endpoints that should exist but don’t
+•	Check how the frontend talks to the backend
+•	Identify broken, partial, or unsafe integrations
+________________________________________
+4️⃣ DATA & STATE REVIEW
+•	Explain how data flows through the app
+•	Identify missing, duplicated, or unnecessary data
+•	Check database structure and usage
+•	Highlight data validation problems
+________________________________________
+5️⃣ TECHNICAL CLEANUP PLAN
+Propose a clear cleanup strategy, including:
+•	What code should be deleted
+•	What should be rewritten
+•	What can be kept but improved
+•	What must be added to finish the app properly
+________________________________________
+🗺️ FINAL DELIVERABLES (VERY IMPORTANT)
+A) TECHNICAL ROADMAP (STEP BY STEP)
+Create a numbered roadmap with phases such as:
+1.	Code cleanup
+2.	Backend fixes
+3.	Frontend fixes
+4.	Feature completion
+5.	Testing
+6.	Deployment
+Each step must include:
+•	✅ What to do
+•	🛠️ Which files are involved
+•	🎯 The expected outcome
+________________________________________
+B) TESTING PLAN
+Explain:
+•	What types of tests are needed (unit, integration, end to end)
+•	What parts of the app need tests first
+•	What tools or frameworks should be used
+•	What “done and safe” looks like
+Keep explanations simple and beginner friendly.
+________________________________________
+C) DEPLOYMENT PLAN
+Explain how to:
+•	Prepare the app for production
+•	Set up environment variables safely
+•	Build the app
+•	Deploy backend and frontend
+•	Verify deployment worked
+Assume no prior deployment experience.
+________________________________________
+D) TECHNICAL BRIEF (FOR DEVELOPERS)
+Create a clear technical summary that explains:
+•	What the app does
+•	How the system works
+•	Key technologies used
+•	Known risks and constraints
+________________________________________
+E) USER BRIEF (FOR NON TECHNICAL PEOPLE)
+Create a simple explanation that a 15 year old could understand:
+•	What the app is for
+•	What users can do
+•	What problems it solves
+•	What still needs to be built
+Use plain language. Avoid jargon.
+________________________________________
+🧠 IMPORTANT RULES
+•	Be honest — if something is broken or missing, say so
+•	Be specific — name files, functions, routes, and components
+•	Be clear — no vague advice
+•	Be focused — only recommend what is actually needed
+•	Explain why something matters, not just what to do
+________________________________________
+✅ OUTPUT FORMAT
+Use clear sections with headings:
+markdown
+1. Project Overview
+2. Codebase Audit
+3. Issues & Risks
+4. Backend Review
+5. Cleanup Recommendations
+6. Development Roadmap
+7. Testing Plan
+8. Deployment Plan
+9. Technical Brief
+10. User Brief
+
