@@ -20,6 +20,7 @@ const EventDetailScreen = ({ navigation }: { navigation: any }) => {
     const loadEvent = async () => {
       try {
         const eventRecord = await database.get<Event>('events').find(eventId);
+        console.log('[EventDetail] Event loaded:', { id: eventId, name: eventRecord.name, url: eventRecord.url, urlType: typeof eventRecord.url });
         setEvent(eventRecord);
         
         const bookmarks = await database.get<Bookmark>('bookmarks')

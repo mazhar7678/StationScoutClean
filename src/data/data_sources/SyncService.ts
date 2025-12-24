@@ -34,11 +34,14 @@ export async function syncEvents(): Promise<void> {
     if (supabaseEvents.length > 0) {
       console.log('[SyncService] Sample event fields:', Object.keys(supabaseEvents[0]));
       const sample = supabaseEvents[0];
+      console.log('[SyncService] Sample event url:', sample.url);
       console.log('[SyncService] Sample event location:', sample.location);
     }
     
     const eventsWithLocation = supabaseEvents.filter((e: any) => e.location);
     console.log('[SyncService] Events with location field:', eventsWithLocation.length, 'of', supabaseEvents.length);
+    
+    let parsedCount = 0;
 
     await database.write(async () => {
       const existing = await eventsCollection.query().fetch();
@@ -74,7 +77,7 @@ export async function syncEvents(): Promise<void> {
               const latHex = loc.substring(34, 50);
               longitude = hexToDouble(lonHex);
               latitude = hexToDouble(latHex);
-              console.log('[SyncService] Parsed event coords:', { longitude, latitude, name: event.name?.substring(0, 30) });
+              parsedCount++;
             } catch (e) {
               console.warn('Failed to parse location hex:', e);
             }
@@ -100,7 +103,7 @@ export async function syncEvents(): Promise<void> {
       await database.batch(...preparedRecords);
     });
 
-    console.log(`[SyncService] Event sync completed. ${supabaseEvents.length} records processed.`);
+    console.log(`[SyncService] Event sync completed. ${supabaseEvents.length} records processed, ${parsedCount} with coordinates.`);
   } catch (e) {
     const errorMessage = e instanceof Error ? e.message : 'Unknown error';
     console.error('[SyncService] Event sync error:', errorMessage);

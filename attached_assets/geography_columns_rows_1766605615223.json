@@ -1,0 +1,1 @@
+[{"f_table_catalog":"postgres","f_table_schema":"public","f_table_name":"events","f_geography_column":"location","coord_dimension":2,"srid":4326,"type":"Point"},{"f_table_catalog":"postgres","f_table_schema":"public","f_table_name":"stations","f_geography_column":"location","coord_dimension":2,"srid":4326,"type":"Point"}]
