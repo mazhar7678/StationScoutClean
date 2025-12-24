@@ -116,7 +116,8 @@ The Supabase tables map to local WatermelonDB as follows:
 - Some React Native animations fall back to JS on web
 - Tunnel mode required for mobile device access in Replit environment
 - Supabase schema has no station-to-line relationship, so StationListScreen shows all stations
-- Events are filtered by geographic proximity (10km radius) from selected station coordinates
+- Events are filtered by geographic proximity (50km radius) from selected station coordinates
+- PredictHQ events don't include booking URLs; Ticketmaster events do have URLs and will show "View Event Website" button
 
 ## UI Design
 - Brand colors: Navy (#1E3A5F) and Orange (#F97316) 
