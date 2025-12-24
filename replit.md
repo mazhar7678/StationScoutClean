@@ -89,13 +89,17 @@ Scan the QR code displayed in the terminal with Expo Go app.
 - Event bookmarking
 
 ## Recent Changes (December 2024)
-- Fixed WatermelonDB model classes with proper Babel decorator configuration
+- Fixed WatermelonDB model classes using getters/setters instead of decorators
 - Added SyncService with error handling and Supabase readiness checks
 - Configured React Query provider for data fetching
 - Updated babel.config.js with decorator and class properties plugins
-- Fixed import paths to use relative imports
+- Fixed import paths to use relative imports throughout all screens
 - Removed duplicate Supabase client files
-- App successfully loads on Expo web with login screen
+- Implemented complete navigation flow: Home → TOC → Lines → Stations → Events → EventDetail
+- Created BookmarksScreen for saved events with offline access
+- Updated HomeScreen as main entry point with app overview and navigation cards
+- Updated useWatermelonQuery hook for reactive data binding
+- Event sync working successfully (1000 records processed)
 
 ## Known Limitations
 - Web mode uses LokiJS adapter (IndexedDB) instead of SQLite
