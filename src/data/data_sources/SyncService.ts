@@ -10,6 +10,21 @@ function isSupabaseReady(): boolean {
   }
 }
 
+async function refreshTicketmasterEvents(): Promise<void> {
+  try {
+    console.log('[SyncService] Calling fetch-ticketmaster-events Edge Function...');
+    const { data, error } = await SupabaseClient.client.functions.invoke('fetch-ticketmaster-events');
+    
+    if (error) {
+      console.error('[SyncService] Edge Function error:', error.message);
+    } else {
+      console.log('[SyncService] Edge Function response:', data);
+    }
+  } catch (e) {
+    console.error('[SyncService] Failed to call Edge Function:', e);
+  }
+}
+
 export async function syncEvents(): Promise<void> {
   if (!isSupabaseReady()) {
     console.log('[SyncService] Supabase not configured, skipping event sync');
@@ -18,6 +33,8 @@ export async function syncEvents(): Promise<void> {
 
   try {
     console.log('[SyncService] Starting event sync...');
+    
+    await refreshTicketmasterEvents();
 
     const eventsCollection = database.get<Event>('events');
     const { data: supabaseEvents, error } = await SupabaseClient.client
