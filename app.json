@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "StationScoutClean",
-    "slug": "StationScoutClean",
+    "name": "StationScout",
+    "slug": "StationScout",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "stationscoutclean",
+    "scheme": "stationscout",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
