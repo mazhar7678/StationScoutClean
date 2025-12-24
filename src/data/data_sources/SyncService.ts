@@ -34,21 +34,11 @@ export async function syncEvents(): Promise<void> {
     if (supabaseEvents.length > 0) {
       console.log('[SyncService] Sample event fields:', Object.keys(supabaseEvents[0]));
       const sample = supabaseEvents[0];
-      console.log('[SyncService] Sample event data:', JSON.stringify({
-        venue_lat: sample.venue_lat,
-        venue_lng: sample.venue_lng,
-        lat: sample.lat,
-        lng: sample.lng,
-        latitude: sample.latitude,
-        longitude: sample.longitude,
-        location: sample.location
-      }));
+      console.log('[SyncService] Sample event location:', sample.location);
     }
     
-    const eventsWithCoords = supabaseEvents.filter((e: any) => 
-      (e.venue_lat && e.venue_lng) || (e.lat && e.lng) || (e.latitude && e.longitude) || e.location
-    );
-    console.log('[SyncService] Events with some coordinates:', eventsWithCoords.length, 'of', supabaseEvents.length);
+    const eventsWithLocation = supabaseEvents.filter((e: any) => e.location);
+    console.log('[SyncService] Events with location field:', eventsWithLocation.length, 'of', supabaseEvents.length);
 
     await database.write(async () => {
       const existing = await eventsCollection.query().fetch();
@@ -56,25 +46,38 @@ export async function syncEvents(): Promise<void> {
     });
 
     await database.write(async () => {
+      const hexToDouble = (hexStr: string): number => {
+        const bytes = new Uint8Array(8);
+        for (let i = 0; i < 8; i++) {
+          bytes[i] = parseInt(hexStr.substr(i * 2, 2), 16);
+        }
+        const view = new DataView(bytes.buffer);
+        return view.getFloat64(0, true);
+      };
+
       const preparedRecords = supabaseEvents.map(event => {
         let latitude: number | null = null;
         let longitude: number | null = null;
         
-        const latValue = event.venue_lat ?? event.lat ?? event.latitude;
-        const lngValue = event.venue_lng ?? event.lng ?? event.longitude;
-        
-        if (latValue !== undefined && latValue !== null) {
-          latitude = typeof latValue === 'number' ? latValue : parseFloat(latValue);
-        }
-        if (lngValue !== undefined && lngValue !== null) {
-          longitude = typeof lngValue === 'number' ? lngValue : parseFloat(lngValue);
-        }
-        
-        if (latitude === null && longitude === null && event.location && typeof event.location === 'string') {
-          const coordinates = event.location.replace('POINT(', '').replace(')', '').split(' ');
-          if (coordinates.length === 2) {
-            longitude = parseFloat(coordinates[0]);
-            latitude = parseFloat(coordinates[1]);
+        if (event.location && typeof event.location === 'string') {
+          const loc = event.location;
+          
+          if (loc.startsWith('POINT(') || loc.startsWith('POINT (')) {
+            const coordinates = loc.replace(/POINT\s*\(\s*/, '').replace(')', '').trim().split(/\s+/);
+            if (coordinates.length === 2) {
+              longitude = parseFloat(coordinates[0]);
+              latitude = parseFloat(coordinates[1]);
+            }
+          } else if (/^[0-9a-fA-F]+$/.test(loc) && loc.length >= 42) {
+            try {
+              const coordHex = loc.substring(10, 42);
+              const lonHex = coordHex.substring(0, 16);
+              const latHex = coordHex.substring(16, 32);
+              longitude = hexToDouble(lonHex);
+              latitude = hexToDouble(latHex);
+            } catch (e) {
+              console.warn('Failed to parse location hex:', e);
+            }
           }
         }
 
