@@ -1,7 +1,7 @@
 import { useRoute } from '@react-navigation/native';
 import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View, Linking, Pressable, Image } from 'react-native';
-import { Button, Text, ActivityIndicator } from 'react-native-paper';
+import { ScrollView, StyleSheet, View, Linking, Pressable, Image, Share, Platform } from 'react-native';
+import { Text, ActivityIndicator } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { database } from '../../../data/data_sources/offline_database';
@@ -20,7 +20,6 @@ const EventDetailScreen = ({ navigation }: { navigation: any }) => {
     const loadEvent = async () => {
       try {
         const eventRecord = await database.get<Event>('events').find(eventId);
-        console.log('[EventDetail] Event loaded:', { id: eventId, name: eventRecord.name, url: eventRecord.url, urlType: typeof eventRecord.url });
         setEvent(eventRecord);
         
         const bookmarks = await database.get<Bookmark>('bookmarks')
@@ -64,6 +63,28 @@ const EventDetailScreen = ({ navigation }: { navigation: any }) => {
   const handleOpenUrl = () => {
     if (event?.url) {
       Linking.openURL(event.url);
+    }
+  };
+
+  const handleShare = async () => {
+    if (!event) return;
+    
+    try {
+      const message = [
+        `Check out this event: ${event.name}`,
+        event.startDate ? `Date: ${formatDate(event.startDate)}` : '',
+        event.venueName ? `Venue: ${event.venueName}` : '',
+        event.url ? `\nBook tickets: ${event.url}` : '',
+        '\nFound via StationScout'
+      ].filter(Boolean).join('\n');
+
+      await Share.share({
+        message,
+        title: event.name,
+        url: event.url || undefined,
+      });
+    } catch (e) {
+      console.error('Error sharing:', e);
     }
   };
 
@@ -150,34 +171,40 @@ const EventDetailScreen = ({ navigation }: { navigation: any }) => {
             </View>
           )}
 
-          {event.source && (
-            <View style={styles.sourceContainer}>
-              <Text style={styles.sourceText}>via {event.source}</Text>
-            </View>
-          )}
+          <View style={styles.sourceContainer}>
+            <MaterialCommunityIcons name="ticket-confirmation" size={16} color={colors.textMuted} />
+            <Text style={styles.sourceText}>Powered by Ticketmaster</Text>
+          </View>
         </View>
 
         <View style={styles.actions}>
           {event.url && (
             <Pressable style={styles.primaryButton} onPress={handleOpenUrl}>
-              <MaterialCommunityIcons name="open-in-new" size={20} color="#fff" />
-              <Text style={styles.primaryButtonText}>View Event Website</Text>
+              <MaterialCommunityIcons name="ticket" size={20} color="#fff" />
+              <Text style={styles.primaryButtonText}>Get Tickets</Text>
             </Pressable>
           )}
 
-          <Pressable 
-            style={[styles.secondaryButton, isBookmarked && styles.bookmarkedButton]} 
-            onPress={handleBookmark}
-          >
-            <MaterialCommunityIcons 
-              name={isBookmarked ? 'bookmark-remove' : 'bookmark-plus'} 
-              size={20} 
-              color={isBookmarked ? colors.error : colors.primary} 
-            />
-            <Text style={[styles.secondaryButtonText, isBookmarked && styles.bookmarkedText]}>
-              {isBookmarked ? 'Remove Bookmark' : 'Save to Bookmarks'}
-            </Text>
-          </Pressable>
+          <View style={styles.actionRow}>
+            <Pressable 
+              style={[styles.actionButton, isBookmarked && styles.bookmarkedButton]} 
+              onPress={handleBookmark}
+            >
+              <MaterialCommunityIcons 
+                name={isBookmarked ? 'bookmark-remove' : 'bookmark-plus'} 
+                size={20} 
+                color={isBookmarked ? colors.error : colors.primary} 
+              />
+              <Text style={[styles.actionButtonText, isBookmarked && styles.bookmarkedText]}>
+                {isBookmarked ? 'Remove' : 'Save'}
+              </Text>
+            </Pressable>
+
+            <Pressable style={styles.actionButton} onPress={handleShare}>
+              <MaterialCommunityIcons name="share-variant" size={20} color={colors.primary} />
+              <Text style={styles.actionButtonText}>Share</Text>
+            </Pressable>
+          </View>
         </View>
       </ScrollView>
     </View>
@@ -203,7 +230,7 @@ const styles = StyleSheet.create({
   },
   eventImage: {
     width: '100%',
-    height: 200,
+    height: 220,
     borderRadius: borderRadius.lg,
     marginBottom: spacing.md,
   },
@@ -253,6 +280,8 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   sourceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginTop: spacing.md,
     paddingTop: spacing.md,
     borderTopWidth: 1,
@@ -261,6 +290,7 @@ const styles = StyleSheet.create({
   sourceText: {
     fontSize: 12,
     color: colors.textMuted,
+    marginLeft: spacing.xs,
   },
   actions: {
     marginTop: spacing.sm,
@@ -269,11 +299,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.primary,
+    backgroundColor: colors.accent,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
     borderRadius: borderRadius.md,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
   },
   primaryButtonText: {
     color: '#fff',
@@ -281,13 +311,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginLeft: spacing.sm,
   },
-  secondaryButton: {
+  actionRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  actionButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surface,
     paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
     borderRadius: borderRadius.md,
     borderWidth: 1,
     borderColor: colors.border,
@@ -296,11 +331,11 @@ const styles = StyleSheet.create({
     borderColor: colors.error + '50',
     backgroundColor: colors.error + '08',
   },
-  secondaryButtonText: {
+  actionButtonText: {
     color: colors.primary,
     fontWeight: '600',
-    fontSize: 16,
-    marginLeft: spacing.sm,
+    fontSize: 14,
+    marginLeft: spacing.xs,
   },
   bookmarkedText: {
     color: colors.error,

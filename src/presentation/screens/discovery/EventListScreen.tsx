@@ -1,10 +1,10 @@
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { Q } from '@nozbe/watermelondb';
-import React, { useEffect, useState } from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Text } from 'react-native-paper';
+import React, { useEffect, useState, useCallback } from 'react';
+import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Text, Searchbar } from 'react-native-paper';
 
 import { database } from '../../../data/data_sources/offline_database';
+import { syncEvents } from '../../../data/data_sources/SyncService';
 import { Event } from '../../../data/db/models';
 import { Card } from '../../components/Card';
 import { GradientHeader } from '../../components/GradientHeader';
@@ -26,72 +26,71 @@ const EventListScreen = () => {
   const { stationId, stationName, latitude, longitude } = route.params || {};
   const navigation = useNavigation<any>();
   const [events, setEvents] = useState<Event[]>([]);
+  const [filteredEvents, setFilteredEvents] = useState<Event[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => {
-    const loadEvents = async () => {
-      try {
-        const collection = database.get<Event>('events');
-        let records = await collection.query().fetch();
+  const loadEvents = useCallback(async () => {
+    try {
+      const collection = database.get<Event>('events');
+      let records = await collection.query().fetch();
+      
+      records = records.filter(e => e.source === 'ticketmaster');
+      
+      if (latitude && longitude) {
+        const stationLat = parseFloat(latitude);
+        const stationLon = parseFloat(longitude);
         
-        const sources = [...new Set(records.map(e => e.source))];
-        console.log('[EventList] All sources in database:', sources);
-        console.log('[EventList] Total events before filter:', records.length);
+        const eventsWithDistance = records
+          .filter(e => e.latitude && e.longitude)
+          .map(e => ({
+            event: e,
+            distance: haversineDistance(stationLat, stationLon, e.latitude!, e.longitude!),
+          }))
+          .filter(e => e.distance <= 50)
+          .sort((a, b) => a.distance - b.distance);
         
-        records = records.filter(e => e.source === 'ticketmaster');
-        
-        console.log('[EventList] Ticketmaster events:', records.length);
-        console.log('[EventList] Station coords:', { latitude, longitude, stationName });
-        
-        const eventsWithCoords = records.filter(e => e.latitude && e.longitude);
-        console.log('[EventList] Events with coordinates:', eventsWithCoords.length);
-        
-        if (eventsWithCoords.length > 0) {
-          console.log('[EventList] Sample event coords:', {
-            name: eventsWithCoords[0].name,
-            lat: eventsWithCoords[0].latitude,
-            lng: eventsWithCoords[0].longitude
-          });
-        }
-        
-        if (latitude && longitude && eventsWithCoords.length > 0) {
-          const stationLat = parseFloat(latitude);
-          const stationLon = parseFloat(longitude);
-          
-          console.log('[EventList] Parsed station coords:', { stationLat, stationLon });
-          
-          const eventsWithDistance = records
-            .filter(e => e.latitude && e.longitude)
-            .map(e => ({
-              event: e,
-              distance: haversineDistance(stationLat, stationLon, e.latitude!, e.longitude!),
-            }))
-            .filter(e => e.distance <= 50)
-            .sort((a, b) => a.distance - b.distance);
-          
-          console.log('[EventList] Events within 50km:', eventsWithDistance.length);
-          
-          if (eventsWithDistance.length > 0) {
-            records = eventsWithDistance.map(e => e.event);
-          } else {
-            console.log('[EventList] No nearby events, showing first 50 by name');
-            records = records.slice(0, 50);
-          }
+        if (eventsWithDistance.length > 0) {
+          records = eventsWithDistance.map(e => e.event);
         } else {
-          console.log('[EventList] No geo filtering, showing first 50 events');
           records = records.slice(0, 50);
         }
-        
-        setEvents(records);
-      } catch (e) {
-        console.error('Error loading events:', e);
-      } finally {
-        setIsLoading(false);
+      } else {
+        records = records.slice(0, 50);
       }
-    };
-
-    loadEvents();
+      
+      setEvents(records);
+      setFilteredEvents(records);
+    } catch (e) {
+      console.error('Error loading events:', e);
+    } finally {
+      setIsLoading(false);
+    }
   }, [stationId, latitude, longitude]);
+
+  useEffect(() => {
+    loadEvents();
+  }, [loadEvents]);
+
+  useEffect(() => {
+    if (searchQuery.trim() === '') {
+      setFilteredEvents(events);
+    } else {
+      const query = searchQuery.toLowerCase();
+      setFilteredEvents(events.filter(event => 
+        event.name.toLowerCase().includes(query) ||
+        (event.venueName && event.venueName.toLowerCase().includes(query))
+      ));
+    }
+  }, [searchQuery, events]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await syncEvents();
+    await loadEvents();
+    setIsRefreshing(false);
+  };
 
   const formatDate = (dateStr: string | null): string => {
     if (!dateStr) return '';
@@ -129,10 +128,27 @@ const EventListScreen = () => {
         subtitle={stationName ? `Near ${stationName}` : 'Discover local events'}
         onBack={() => navigation.goBack()}
       />
+      <View style={styles.searchContainer}>
+        <Searchbar
+          placeholder="Search events..."
+          onChangeText={setSearchQuery}
+          value={searchQuery}
+          style={styles.searchBar}
+          inputStyle={styles.searchInput}
+        />
+      </View>
       <FlatList
-        data={events}
+        data={filteredEvents}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.list}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
         renderItem={({ item }) => (
           <Card
             title={item.name}
@@ -151,11 +167,15 @@ const EventListScreen = () => {
         )}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyTitle}>No Events Found</Text>
+            <Text style={styles.emptyTitle}>
+              {searchQuery ? 'No Matching Events' : 'No Events Found'}
+            </Text>
             <Text style={styles.emptyHint}>
-              {latitude && longitude 
-                ? 'No events found within 50km of this station.'
-                : 'Try selecting a different station to find nearby events.'
+              {searchQuery 
+                ? 'Try a different search term.'
+                : latitude && longitude 
+                  ? 'No events found within 50km of this station.'
+                  : 'Pull down to refresh or try a different station.'
               }
             </Text>
           </View>
@@ -170,9 +190,20 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  searchContainer: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+  },
+  searchBar: {
+    backgroundColor: colors.surface,
+    elevation: 2,
+  },
+  searchInput: {
+    fontSize: 14,
+  },
   list: {
     padding: spacing.md,
-    paddingTop: spacing.lg,
+    paddingTop: spacing.md,
   },
   loadingContainer: {
     flex: 1,

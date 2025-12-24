@@ -54,6 +54,22 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 
         <Pressable 
           style={styles.secondaryCard}
+          onPress={() => navigation.navigate('Map')}
+        >
+          <View style={[styles.cardIcon, styles.mapIcon]}>
+            <MaterialCommunityIcons name="map-search" size={28} color={colors.accent} />
+          </View>
+          <View style={styles.cardContent}>
+            <Text style={styles.cardTitle}>Explore by Region</Text>
+            <Text style={styles.cardDescription}>
+              Browse events near major UK cities
+            </Text>
+          </View>
+          <MaterialCommunityIcons name="chevron-right" size={24} color={colors.textMuted} />
+        </Pressable>
+
+        <Pressable 
+          style={styles.secondaryCard}
           onPress={() => navigation.navigate('Bookmarks')}
         >
           <View style={[styles.cardIcon, styles.bookmarkIcon]}>
@@ -210,6 +226,9 @@ const styles = StyleSheet.create({
   },
   bookmarkIcon: {
     backgroundColor: colors.primary + '10',
+  },
+  mapIcon: {
+    backgroundColor: colors.accent + '15',
   },
   cardContent: {
     flex: 1,

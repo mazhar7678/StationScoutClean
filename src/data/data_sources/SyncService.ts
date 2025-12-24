@@ -73,26 +73,11 @@ export async function syncEvents(): Promise<void> {
       return;
     }
     
-    if (supabaseEvents.length > 0) {
-      console.log('[SyncService] Sample event fields:', Object.keys(supabaseEvents[0]));
-      const sample = supabaseEvents[0];
-      console.log('[SyncService] Sample event url:', sample.url);
-      console.log('[SyncService] Sample event location:', sample.location);
-      
-      const sources = [...new Set(supabaseEvents.map((e: any) => e.source))];
-      console.log('[SyncService] Event sources from Supabase:', sources);
-      const ticketmasterCount = supabaseEvents.filter((e: any) => e.source === 'ticketmaster').length;
-      console.log('[SyncService] Ticketmaster events in Supabase:', ticketmasterCount);
-    }
-    
-    const eventsWithLocation = supabaseEvents.filter((e: any) => e.location);
-    console.log('[SyncService] Events with location field:', eventsWithLocation.length, 'of', supabaseEvents.length);
-    
     let parsedCount = 0;
 
     await database.write(async () => {
       const existing = await eventsCollection.query().fetch();
-      await database.batch(...existing.map(r => r.prepareDestroyPermanently()));
+      await database.batch(existing.map(r => r.prepareDestroyPermanently()));
     });
 
     await database.write(async () => {
@@ -149,7 +134,7 @@ export async function syncEvents(): Promise<void> {
         });
       });
 
-      await database.batch(...preparedRecords);
+      await database.batch(preparedRecords);
     });
 
     console.log(`[SyncService] Event sync completed. ${supabaseEvents.length} records processed, ${parsedCount} with coordinates.`);
@@ -181,7 +166,7 @@ export async function syncOperators(): Promise<void> {
 
     await database.write(async () => {
       const existing = await collection.query().fetch();
-      await database.batch(...existing.map(r => r.prepareDestroyPermanently()));
+      await database.batch(existing.map(r => r.prepareDestroyPermanently()));
     });
 
     await database.write(async () => {
@@ -195,7 +180,7 @@ export async function syncOperators(): Promise<void> {
           raw.updated_at = Date.now();
         })
       );
-      await database.batch(...records);
+      await database.batch(records);
     });
 
     console.log(`[SyncService] Operator sync completed. ${data.length} records.`);
@@ -227,7 +212,7 @@ export async function syncLines(): Promise<void> {
 
     await database.write(async () => {
       const existing = await collection.query().fetch();
-      await database.batch(...existing.map(r => r.prepareDestroyPermanently()));
+      await database.batch(existing.map(r => r.prepareDestroyPermanently()));
     });
 
     await database.write(async () => {
@@ -242,7 +227,7 @@ export async function syncLines(): Promise<void> {
           raw.updated_at = Date.now();
         })
       );
-      await database.batch(...records);
+      await database.batch(records);
     });
 
     console.log(`[SyncService] Line sync completed. ${data.length} records.`);
@@ -274,7 +259,7 @@ export async function syncStations(): Promise<void> {
 
     await database.write(async () => {
       const existing = await collection.query().fetch();
-      await database.batch(...existing.map(r => r.prepareDestroyPermanently()));
+      await database.batch(existing.map(r => r.prepareDestroyPermanently()));
     });
 
     await database.write(async () => {
@@ -315,7 +300,7 @@ export async function syncStations(): Promise<void> {
           raw.updated_at = Date.now();
         });
       });
-      await database.batch(...records);
+      await database.batch(records);
     });
 
     console.log(`[SyncService] Station sync completed. ${data.length} records.`);

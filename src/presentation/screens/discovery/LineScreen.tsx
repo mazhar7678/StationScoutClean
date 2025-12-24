@@ -1,10 +1,11 @@
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Q } from '@nozbe/watermelondb';
-import React, { useEffect, useState } from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Text } from 'react-native-paper';
+import React, { useEffect, useState, useCallback } from 'react';
+import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Text, Searchbar } from 'react-native-paper';
 
 import { database } from '../../../data/data_sources/offline_database';
+import { syncLines } from '../../../data/data_sources/SyncService';
 import { RailwayLine } from '../../../data/db/models';
 import { Card } from '../../components/Card';
 import { GradientHeader } from '../../components/GradientHeader';
@@ -15,21 +16,25 @@ const LineScreen = () => {
   const { operatorId, operatorName } = route.params || {};
   const navigation = useNavigation<any>();
   const [lines, setLines] = useState<RailwayLine[]>([]);
+  const [filteredLines, setFilteredLines] = useState<RailwayLine[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const loadLines = useCallback(async () => {
+    try {
+      const collection = database.get<RailwayLine>('railway_lines');
+      const records = await collection.query(Q.where('operator_id', operatorId)).fetch();
+      setLines(records);
+      setFilteredLines(records);
+    } catch (e) {
+      console.error('Error loading lines:', e);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [operatorId]);
 
   useEffect(() => {
-    const loadLines = async () => {
-      try {
-        const collection = database.get<RailwayLine>('railway_lines');
-        const records = await collection.query(Q.where('operator_id', operatorId)).fetch();
-        setLines(records);
-      } catch (e) {
-        console.error('Error loading lines:', e);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     loadLines();
 
     const subscription = database.get<RailwayLine>('railway_lines')
@@ -37,10 +42,32 @@ const LineScreen = () => {
       .observe()
       .subscribe((records) => {
         setLines(records);
+        if (!searchQuery) {
+          setFilteredLines(records);
+        }
       });
 
     return () => subscription.unsubscribe();
-  }, [operatorId]);
+  }, [operatorId, loadLines, searchQuery]);
+
+  useEffect(() => {
+    if (searchQuery.trim() === '') {
+      setFilteredLines(lines);
+    } else {
+      const query = searchQuery.toLowerCase();
+      setFilteredLines(lines.filter(line => 
+        line.name.toLowerCase().includes(query) ||
+        (line.code && line.code.toLowerCase().includes(query))
+      ));
+    }
+  }, [searchQuery, lines]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await syncLines();
+    await loadLines();
+    setIsRefreshing(false);
+  };
 
   if (isLoading) {
     return (
@@ -64,10 +91,27 @@ const LineScreen = () => {
         subtitle={operatorName || 'Select a line'}
         onBack={() => navigation.goBack()}
       />
+      <View style={styles.searchContainer}>
+        <Searchbar
+          placeholder="Search lines..."
+          onChangeText={setSearchQuery}
+          value={searchQuery}
+          style={styles.searchBar}
+          inputStyle={styles.searchInput}
+        />
+      </View>
       <FlatList
-        data={lines}
+        data={filteredLines}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.list}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
         renderItem={({ item }) => (
           <Card
             title={item.name}
@@ -85,9 +129,14 @@ const LineScreen = () => {
         )}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyTitle}>No Lines Found</Text>
+            <Text style={styles.emptyTitle}>
+              {searchQuery ? 'No Matching Lines' : 'No Lines Found'}
+            </Text>
             <Text style={styles.emptyHint}>
-              No railway lines are available for this operator yet.
+              {searchQuery 
+                ? 'Try a different search term.'
+                : 'Pull down to refresh or check back later.'
+              }
             </Text>
           </View>
         }
@@ -101,9 +150,20 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  searchContainer: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+  },
+  searchBar: {
+    backgroundColor: colors.surface,
+    elevation: 2,
+  },
+  searchInput: {
+    fontSize: 14,
+  },
   list: {
     padding: spacing.md,
-    paddingTop: spacing.lg,
+    paddingTop: spacing.md,
   },
   loadingContainer: {
     flex: 1,

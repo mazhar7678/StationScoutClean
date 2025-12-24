@@ -1,12 +1,12 @@
 # StationScout
 
 ## Overview
-StationScout is an Expo React Native mobile application for discovering events near train stations. Users can browse train operators, railway lines, and stations to find local events. The app uses Supabase for authentication and backend data, with WatermelonDB providing offline-first data storage.
+StationScout is an Expo React Native mobile application for discovering Ticketmaster events near UK train stations. Users follow the journey: select Train Operating Company → choose railway line → view stations → discover events (within 50km radius) with booking links and images → bookmark and share.
 
 ## Project Architecture
 
 ### Tech Stack
-- **Framework**: Expo (React Native)
+- **Framework**: Expo (React Native) v54
 - **UI Library**: React Native Paper
 - **Navigation**: React Navigation (Native Stack)
 - **Backend**: Supabase (Authentication, Database)
@@ -17,11 +17,12 @@ StationScout is an Expo React Native mobile application for discovering events n
 ### Directory Structure
 ```
 /
-├── App.tsx                 # Main app entry with providers (QueryClient, Database, Paper)
+├── App.tsx                 # Main app entry with providers
 ├── index.js                # Expo entry point
 ├── app.json                # Expo configuration
-├── babel.config.js         # Babel with decorators and class properties
-├── tsconfig.json           # TypeScript config with decorators enabled
+├── eas.json                # EAS Build configuration
+├── babel.config.js         # Babel with decorators
+├── tsconfig.json           # TypeScript config
 ├── src/
 │   ├── data/
 │   │   ├── data_sources/
@@ -29,23 +30,31 @@ StationScout is an Expo React Native mobile application for discovering events n
 │   │   │   ├── offline_database.ts   # WatermelonDB setup
 │   │   │   └── SyncService.ts        # Data sync from Supabase
 │   │   ├── db/
-│   │   │   ├── schema.ts             # WatermelonDB schema
-│   │   │   └── models.ts             # Model classes with decorators
+│   │   │   ├── schema.ts             # WatermelonDB schema (v3)
+│   │   │   └── models.ts             # Model classes
 │   │   ├── repositories/
 │   │   │   └── EventRepository.ts    # Data access layer
 │   │   └── store/                    # Zustand stores
-│   ├── domain/
-│   │   ├── entities/       # Domain models
-│   │   └── use_cases/      # Business logic
 │   ├── presentation/
-│   │   ├── components/     # Reusable UI components
-│   │   ├── hooks/          # Custom hooks (useSyncService)
-│   │   ├── navigation/     # AppNavigator, AuthStack
-│   │   ├── screens/        # Screen components
-│   │   └── viewmodels/     # Theme configuration
-│   └── types/              # TypeScript definitions
-├── assets/                 # Images and icons
-└── .env                    # Environment variables (not committed)
+│   │   ├── components/
+│   │   │   ├── Card.tsx              # Event/item cards with images
+│   │   │   ├── ErrorBoundary.tsx     # Error handling wrapper
+│   │   │   ├── GradientHeader.tsx    # Screen headers
+│   │   │   ├── ListItem.tsx          # Simple list items
+│   │   │   └── Centered.tsx          # Layout helper
+│   │   ├── hooks/                    # Custom hooks
+│   │   ├── navigation/
+│   │   │   └── AppNavigator.tsx      # Main navigation setup
+│   │   ├── screens/
+│   │   │   ├── auth/                 # Login, SignUp, Profile
+│   │   │   ├── discovery/            # TOC, Lines, Stations, Events, EventDetail
+│   │   │   ├── HomeScreen.tsx        # Main home screen
+│   │   │   ├── BookmarksScreen.tsx   # Saved events
+│   │   │   └── MapScreen.tsx         # Explore by region
+│   │   └── theme/
+│   │       └── colors.ts             # Theme configuration
+│   └── types/                        # TypeScript definitions
+└── assets/                           # Images and icons
 ```
 
 ## Environment Variables
@@ -57,7 +66,6 @@ Required in `.env`:
 ## Running the App
 
 ### Development (Web)
-The app runs on port 5000 in tunnel mode:
 ```bash
 npx expo start --web --port 5000 --tunnel
 ```
@@ -65,68 +73,95 @@ npx expo start --web --port 5000 --tunnel
 ### Mobile (Expo Go)
 Scan the QR code displayed in the terminal with Expo Go app.
 
-## Key Components
-
-### WatermelonDB Models
-- **Event** - Local events with venue info and coordinates
-- **TrainOperator** - Train companies/operators
-- **RailwayLine** - Railway lines belonging to operators
-- **Station** - Stations on railway lines
-- **Bookmark** - User bookmarked events
-- **PendingChange** - Offline changes pending sync
-
-### Data Flow
-1. App loads with DatabaseProvider and QueryClientProvider
-2. User authenticates via Supabase
-3. SyncService pulls data from Supabase to local WatermelonDB
-4. Screens query local database for offline-first experience
+### Build for Production
+```bash
+npm run build:production
+```
 
 ## Features
-- User authentication (Sign In, Sign Up)
-- Event discovery and listing
-- Offline data sync with WatermelonDB
-- Station and railway line browsing
-- Event bookmarking
+
+### Implemented
+- **User authentication** (Login, SignUp, Logout via Supabase)
+- **Event discovery** (TOC → Lines → Stations → Events flow)
+- **Search functionality** on all list screens
+- **Pull-to-refresh** on all data screens
+- **Event details** with images, dates, venue info
+- **Booking links** direct to Ticketmaster
+- **Event sharing** via native Share API
+- **Bookmarking** with offline access
+- **Explore by Region** (Browse events near UK cities)
+- **Auto-sync** on app launch and every 5 minutes
+- **Ticketmaster refresh** via Edge Function
+- **Error boundary** for graceful error handling
+- **Offline-first** storage with WatermelonDB
+
+### Data Flow
+1. App launches → Auto-sync triggered
+2. SyncService calls Edge Function to refresh Ticketmaster data
+3. Data synced from Supabase to local WatermelonDB
+4. Screens query local database for fast, offline-capable access
+5. Background sync every 5 minutes while app is active
+
+## UI Design
+- **Brand colors**: Navy (#1E3A5F) and Orange (#F97316)
+- **Modern card-based layouts** with images and badges
+- **Search bars** on all list screens
+- **Pull-to-refresh** across the app
+- **Consistent headers** with back navigation
 
 ## Recent Changes (December 2024)
-- Fixed WatermelonDB model classes using getters/setters instead of decorators
-- Added SyncService with error handling and Supabase readiness checks
-- Configured React Query provider for data fetching
-- Updated babel.config.js with decorator and class properties plugins
-- Fixed import paths to use relative imports throughout all screens
-- Removed duplicate Supabase client files
-- Implemented complete navigation flow: Home → TOC → Lines → Stations → Events → EventDetail
-- Created BookmarksScreen for saved events with offline access
-- Updated HomeScreen as main entry point with app overview and navigation cards
-- Updated useWatermelonQuery hook for reactive data binding
-- Fixed Supabase column mapping: `toc_id` → `operator_id` for railway lines
-- Fixed station sync to parse PostGIS hex location format using DataView (browser-compatible)
-- Added white backgrounds and dark text colors for better readability on all screens
-- **Ticketmaster-only events**: Sync now filters for source='ticketmaster' with both URL and image_url
-- **Event images**: Added image_url to schema (v3) and Event model; Card component displays images
-- **Event filtering**: Events without booking URLs or images are excluded at Supabase query level
-- **Auto-refresh from Ticketmaster**: App calls `fetch-ticketmaster-events` Edge Function on sync
-- **Auto-sync on launch**: App syncs data on startup and every 5 minutes while active
-- **Fixed all TypeScript errors**: Resolved 27 LSP diagnostics in SyncService.ts
-- **Created TECHNICAL_AUDIT.md**: Comprehensive codebase audit with roadmap
+
+### Phase 1: Code Cleanup
+- Deleted unused directories: components/, hooks/, constants/, scripts/, contexts/, domain/, Theme/, services/
+- Cleaned up debug console.log statements
+- Updated src/README.md with simplified structure
+- Fixed database batch performance warnings
+
+### Phase 2: Backend Fixes
+- Improved SyncService with better error handling
+- Fixed Edge Function invocation using fetch
+- All batch operations use array syntax for performance
+
+### Phase 3: Frontend Polish
+- Added pull-to-refresh to LineScreen, StationListScreen, EventListScreen, BookmarksScreen
+- Added search bars to all list screens
+- Added ErrorBoundary component for graceful error handling
+- Improved loading states across all screens
+
+### Phase 4: Feature Completion
+- Implemented "Explore by Region" screen with UK city filters (list-based, no map visualization)
+- Added sharing functionality to EventDetailScreen
+- Enhanced BookmarksScreen with search and images
+- Updated HomeScreen with Map navigation card
+
+### Phase 5 & 6: Testing & Deployment
+- Created eas.json for EAS Build configuration
+- Added build scripts to package.json
+- Skipped test setup due to React 19 compatibility issues
 
 ## Supabase Schema Mapping
-The Supabase tables map to local WatermelonDB as follows:
-- `train_operators` (id, name, code) → `train_operators` (id, name, country=code)
-- `railway_lines` (id, name, toc_id) → `railway_lines` (id, name, operator_id=toc_id)
-- `stations` (id, name, crs_code, location) → `stations` (id, name, code=crs_code, lat/lng parsed from location)
-- `events` (source_id, name, url, ...) → `events` (mapped directly)
+- `train_operators` (id, name, code) → local `train_operators`
+- `railway_lines` (id, name, toc_id) → local `railway_lines` (operator_id = toc_id)
+- `stations` (id, name, crs_code, location) → local `stations` (lat/lng parsed from PostGIS hex)
+- `events` (source_id, name, url, image_url...) → local `events`
 
 ## Known Limitations
 - Web mode uses LokiJS adapter (IndexedDB) instead of SQLite
-- Some React Native animations fall back to JS on web
-- Tunnel mode required for mobile device access in Replit environment
-- Supabase schema has no station-to-line relationship, so StationListScreen shows all stations
-- Events are filtered by geographic proximity (50km radius) from selected station coordinates
-- App displays only Ticketmaster events (which have booking URLs); PredictHQ events are filtered out
+- Station-Line relationship not in Supabase schema (shows all stations)
+- Bookmarks are local only (don't sync across devices)
+- Events filtered to Ticketmaster source only
+- 50km radius for event proximity filtering
 
-## UI Design
-- Brand colors: Navy (#1E3A5F) and Orange (#F97316) 
-- Modern card-based layouts with icons and badges
-- GradientHeader component for consistent screen headers
-- Theme file: src/presentation/theme/colors.ts
+## Deployment
+
+### EAS Build Profiles
+- `development` - For local development with dev client
+- `preview` - Internal testing builds
+- `production` - App store ready builds
+
+### Build Commands
+```bash
+npm run build:preview    # Build for internal testing
+npm run build:production # Build for app stores
+npm run submit           # Submit to app stores
+```

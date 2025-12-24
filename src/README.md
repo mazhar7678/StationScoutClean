@@ -1,26 +1,39 @@
 # StationScout Mobile Source Structure
 
-The `src` directory follows the Clean Architecture guidance from the StationScout Mobile blueprint. Each layer has a single responsibility and communicates with adjacent layers through clearly defined contracts.
+The `src` directory follows a simplified Clean Architecture pattern.
 
-## Presentation
-
-- `components/`: Reusable, platform-specific building blocks (buttons, layout helpers, theming utilities).
-- `screens/`: UI surfaces composed of components and driven by view models.
-- `navigation/`: React Navigation stacks, tabs, and deep-link configuration.
-- `viewmodels/`: State containers (e.g., Zustand stores) that orchestrate presentation logic and coordinate with domain use cases.
-
-## Domain
-
-- `entities/`: Immutable business models shared between layers.
-- `use_cases/`: Stateless operations that encapsulate application-specific business logic. They depend on abstract repositories rather than concrete data sources.
-
-## Data
-
-- `repositories/`: Concrete implementations of domain repositories. They adapt external services to the domain layer.
-- `data_sources/`: Gateways to remote APIs, databases, and device storage (e.g., Supabase, WatermelonDB adapters). Infrastructure code lives here.
+## Directory Structure
 
 ```
-Presentation -> Domain -> Data
+src/
+├── data/                  # Data layer
+│   ├── data_sources/      # Supabase, WatermelonDB, Secure Storage
+│   ├── db/                # Database schema and models
+│   ├── repositories/      # Data access interfaces
+│   └── store/             # Zustand state stores
+├── presentation/          # UI layer
+│   ├── components/        # Reusable UI components
+│   ├── hooks/             # Custom React hooks
+│   ├── navigation/        # React Navigation setup
+│   ├── screens/           # Screen components
+│   ├── theme/             # Colors and styling
+│   └── viewmodels/        # View configuration
+└── types/                 # TypeScript type definitions
 ```
 
-Data dependencies never point back up the tree, ensuring UI concerns remain isolated from persistence details.
+## Data Flow
+
+```
+User Action → Screen → Repository → SyncService → Supabase
+                                                 ↓
+                                          WatermelonDB
+                                                 ↓
+                                          Screen (reactive)
+```
+
+## Key Components
+
+- **SyncService**: Orchestrates data sync between Supabase and local WatermelonDB
+- **EventRepository**: Provides queries for accessing local event data
+- **SupabaseClient**: Singleton for Supabase auth and database operations
+- **authStore**: Zustand store for authentication state

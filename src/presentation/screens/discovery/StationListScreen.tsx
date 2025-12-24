@@ -1,9 +1,10 @@
 import { useNavigation, useRoute } from '@react-navigation/native';
-import React, { useEffect, useState } from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Text } from 'react-native-paper';
+import React, { useEffect, useState, useCallback } from 'react';
+import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Text, Searchbar } from 'react-native-paper';
 
 import { database } from '../../../data/data_sources/offline_database';
+import { syncStations } from '../../../data/data_sources/SyncService';
 import { Station } from '../../../data/db/models';
 import { Card } from '../../components/Card';
 import { GradientHeader } from '../../components/GradientHeader';
@@ -14,32 +15,60 @@ const StationListScreen = () => {
   const { lineName } = route.params || {};
   const navigation = useNavigation<any>();
   const [stations, setStations] = useState<Station[]>([]);
+  const [filteredStations, setFilteredStations] = useState<Station[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const loadStations = useCallback(async () => {
+    try {
+      const collection = database.get<Station>('stations');
+      const records = await collection.query().fetch();
+      const sortedRecords = records.sort((a, b) => a.name.localeCompare(b.name));
+      setStations(sortedRecords);
+      setFilteredStations(sortedRecords);
+    } catch (e) {
+      console.error('Error loading stations:', e);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const loadStations = async () => {
-      try {
-        const collection = database.get<Station>('stations');
-        const records = await collection.query().fetch();
-        setStations(records);
-      } catch (e) {
-        console.error('Error loading stations:', e);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     loadStations();
 
     const subscription = database.get<Station>('stations')
       .query()
       .observe()
       .subscribe((records) => {
-        setStations(records);
+        const sortedRecords = records.sort((a, b) => a.name.localeCompare(b.name));
+        setStations(sortedRecords);
+        if (!searchQuery) {
+          setFilteredStations(sortedRecords);
+        }
       });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [loadStations, searchQuery]);
+
+  useEffect(() => {
+    if (searchQuery.trim() === '') {
+      setFilteredStations(stations);
+    } else {
+      const query = searchQuery.toLowerCase();
+      setFilteredStations(stations.filter(station => 
+        station.name.toLowerCase().includes(query) ||
+        (station.code && station.code.toLowerCase().includes(query))
+      ));
+    }
+  }, [searchQuery, stations]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await syncStations();
+    await loadStations();
+    setIsRefreshing(false);
+  };
 
   if (isLoading) {
     return (
@@ -60,13 +89,30 @@ const StationListScreen = () => {
     <View style={styles.container}>
       <GradientHeader
         title="All Stations"
-        subtitle={`${stations.length} stations available`}
+        subtitle={`${filteredStations.length} stations available`}
         onBack={() => navigation.goBack()}
       />
+      <View style={styles.searchContainer}>
+        <Searchbar
+          placeholder="Search stations..."
+          onChangeText={setSearchQuery}
+          value={searchQuery}
+          style={styles.searchBar}
+          inputStyle={styles.searchInput}
+        />
+      </View>
       <FlatList
-        data={stations}
+        data={filteredStations}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.list}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
         renderItem={({ item }) => (
           <Card
             title={item.name}
@@ -85,9 +131,14 @@ const StationListScreen = () => {
         )}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyTitle}>No Stations Found</Text>
+            <Text style={styles.emptyTitle}>
+              {searchQuery ? 'No Matching Stations' : 'No Stations Found'}
+            </Text>
             <Text style={styles.emptyHint}>
-              Stations will appear here after syncing data.
+              {searchQuery 
+                ? 'Try a different search term.'
+                : 'Pull down to refresh or check back later.'
+              }
             </Text>
           </View>
         }
@@ -101,9 +152,20 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  searchContainer: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+  },
+  searchBar: {
+    backgroundColor: colors.surface,
+    elevation: 2,
+  },
+  searchInput: {
+    fontSize: 14,
+  },
   list: {
     padding: spacing.md,
-    paddingTop: spacing.lg,
+    paddingTop: spacing.md,
   },
   loadingContainer: {
     flex: 1,
