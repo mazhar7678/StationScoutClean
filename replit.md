@@ -10,7 +10,7 @@ StationScout is an Expo React Native mobile application for discovering Ticketma
 - **UI Library**: React Native Paper
 - **Navigation**: React Navigation (Native Stack)
 - **Backend**: Supabase (Authentication, Database)
-- **Offline Storage**: WatermelonDB with LokiJS/IndexedDB (web)
+- **Offline Storage**: WatermelonDB (SQLite on native, LokiJS/IndexedDB on web)
 - **State Management**: Zustand, React Query
 - **Language**: TypeScript
 
@@ -27,7 +27,8 @@ StationScout is an Expo React Native mobile application for discovering Ticketma
 │   ├── data/
 │   │   ├── data_sources/
 │   │   │   ├── supabase_client.ts    # Supabase client singleton
-│   │   │   ├── offline_database.ts   # WatermelonDB setup
+│   │   │   ├── offline_database.web.ts   # WatermelonDB (LokiJS for web)
+│   │   │   ├── offline_database.native.ts # WatermelonDB (SQLite for native)
 │   │   │   └── SyncService.ts        # Data sync from Supabase
 │   │   ├── db/
 │   │   │   ├── schema.ts             # WatermelonDB schema (v3)
@@ -139,6 +140,14 @@ npm run build:production
 - Added build scripts to package.json
 - Skipped test setup due to React 19 compatibility issues
 
+### Phase 7: Hermes Compatibility Fix (December 2025)
+- Fixed "Cannot assign to read-only property 'NONE'" crash on Android caused by LokiJS + Hermes
+- Implemented platform-aware database adapter: SQLite for Android/iOS, LokiJS for web
+- Added expo-sqlite and expo-crypto dependencies
+- Created migrations.ts for WatermelonDB schema migrations
+- Updated eas.json with APK build configuration for development/preview profiles
+- Important: Native testing requires EAS development build (not Expo Go) for SQLite support
+
 ## Supabase Schema Mapping
 - `train_operators` (id, name, code) → local `train_operators`
 - `railway_lines` (id, name, toc_id) → local `railway_lines` (operator_id = toc_id)
@@ -146,7 +155,8 @@ npm run build:production
 - `events` (source_id, name, url, image_url...) → local `events`
 
 ## Known Limitations
-- Web mode uses LokiJS adapter (IndexedDB) instead of SQLite
+- Web mode uses LokiJS adapter (IndexedDB); native uses SQLite adapter
+- Native testing requires EAS development build (Expo Go doesn't support SQLite adapter)
 - Station-Line relationship not in Supabase schema (shows all stations)
 - Bookmarks are local only (don't sync across devices)
 - Events filtered to Ticketmaster source only
