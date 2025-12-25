@@ -1,0 +1,828 @@
+# StationScout - Technical Architecture Document
+
+**Version:** 1.0  
+**Date:** December 25, 2025  
+**Purpose:** External technical consultation for Android compatibility issues
+
+---
+
+## Table of Contents
+
+1. [Executive Summary](#1-executive-summary)
+2. [Current Critical Issue](#2-current-critical-issue)
+3. [Complete Tech Stack](#3-complete-tech-stack)
+4. [Platform Architecture](#4-platform-architecture)
+5. [Data Architecture](#5-data-architecture)
+6. [Supabase Backend](#6-supabase-backend)
+7. [Known Compatibility Issues](#7-known-compatibility-issues)
+8. [Build Configuration](#8-build-configuration)
+9. [Recommended Debugging Steps](#9-recommended-debugging-steps)
+10. [File Reference](#10-file-reference)
+
+---
+
+## 1. Executive Summary
+
+StationScout is an Expo React Native mobile application for discovering Ticketmaster events near UK train stations. The app works perfectly in web preview mode but experiences critical issues on Android devices using the Hermes JavaScript engine.
+
+**Current Status:** Login button clicks are not registering in Android development builds.
+
+**Environment Comparison:**
+
+| Environment | JavaScript Engine | Database Adapter | Status |
+|-------------|-------------------|------------------|--------|
+| Web Preview (Replit) | V8 (Chrome) | LokiJS (IndexedDB) | Working |
+| Android Native | Hermes | SQLite | Button clicks not registering |
+| iOS Native | JavaScriptCore/Hermes | SQLite | Untested |
+
+---
+
+## 2. Current Critical Issue
+
+### 2.1 Problem Statement
+
+Button press events are not firing in the Android development build. The login button appears visually correct but tapping it produces no response - no console logs, no network requests, no state changes.
+
+### 2.2 Observed Behavior
+
+```
+Android device connects to dev server: OK
+Bundle downloads successfully: OK (2665ms)
+Data sync completes: OK
+Button visual render: OK
+Button onPress callback: NOT FIRING
+```
+
+### 2.3 What Has Been Tried
+
+1. **Pressable Component** - Standard React Native touchable - did not work
+2. **React Native Paper Button** - Higher-level component with built-in handling - current attempt
+3. **Console logging inside handlers** - Logs never appear, confirming handlers aren't called
+4. **Platform-specific patches** - Applied Object.freeze patches for Hermes
+
+### 2.4 Suspected Root Causes
+
+1. **Gesture Handler Configuration** - react-native-gesture-handler may not be properly initialized
+2. **Touch Event Interception** - Something in the component tree may be consuming touch events
+3. **Hermes Engine Incompatibility** - JavaScript patterns that work in V8 but fail in Hermes
+4. **PaperProvider/Theme Issues** - React Native Paper's theming layer may interfere with touch handling
+
+---
+
+## 3. Complete Tech Stack
+
+### 3.1 Core Dependencies
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| expo | ~54.0.30 | React Native framework |
+| react | 19.1.0 | UI library |
+| react-native | 0.81.5 | Mobile platform |
+| react-native-paper | ^5.14.5 | Material Design UI components |
+| @nozbe/watermelondb | ^0.28.0 | Offline-first database |
+| zustand | ^5.0.9 | State management |
+| @tanstack/react-query | ^5.90.12 | Server state management |
+
+### 3.2 Navigation
+
+| Package | Version |
+|---------|---------|
+| @react-navigation/native | ^7.1.26 |
+| @react-navigation/native-stack | ^7.9.0 |
+| @react-navigation/bottom-tabs | ^7.4.0 |
+| react-native-screens | ~4.16.0 |
+| react-native-safe-area-context | ~5.6.0 |
+
+### 3.3 Gesture & Animation
+
+| Package | Version | Critical For |
+|---------|---------|--------------|
+| react-native-gesture-handler | ~2.28.0 | Touch handling |
+| react-native-reanimated | ~4.1.1 | Animations |
+
+### 3.4 Storage & Database
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| @nozbe/watermelondb | ^0.28.0 | Offline database ORM |
+| expo-sqlite | ^16.0.10 | SQLite for native |
+| @react-native-async-storage/async-storage | 2.2.0 | Key-value storage |
+
+### 3.5 Expo Modules
+
+| Package | Version |
+|---------|---------|
+| expo-crypto | ^15.0.8 |
+| expo-constants | ~18.0.12 |
+| expo-dev-client | ~6.0.20 |
+| expo-splash-screen | ~31.0.13 |
+
+### 3.6 Build Dependencies
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| @babel/plugin-proposal-decorators | ^7.28.0 | WatermelonDB models |
+| @babel/plugin-transform-class-properties | ^7.27.1 | Class syntax |
+| @lovesworking/watermelondb-expo-plugin-sdk-52-plus | ^1.0.3 | Expo SQLite bridge |
+
+---
+
+## 4. Platform Architecture
+
+### 4.1 Platform Detection Flow
+
+```
+App Launch
+    |
+    v
+[Check Platform.OS]
+    |
+    +-- 'web' --> Use offline_database.web.ts
+    |                  |
+    |                  v
+    |             LokiJS Adapter (IndexedDB)
+    |
+    +-- 'android' or 'ios' --> Use offline_database.native.ts
+                                   |
+                                   v
+                              [Check Environment]
+                                   |
+                                   +-- Expo Go + Hermes --> MockDatabase (no persistence)
+                                   |
+                                   +-- EAS Build --> SQLite Adapter (full persistence)
+```
+
+### 4.2 Web Environment (Working)
+
+**File:** `src/data/data_sources/offline_database.web.ts`
+
+```typescript
+const adapter = new LokiJSAdapter({
+  schema: stationScoutSchema,
+  migrations,
+  useWebWorker: false,
+  useIncrementalIndexedDB: true,
+  dbName: 'stationscout_web_v3',
+});
+```
+
+- Uses LokiJS with IndexedDB persistence
+- Runs in Chrome V8 JavaScript engine
+- No Hermes compatibility issues
+- Full functionality works
+
+### 4.3 Native Environment (Problematic)
+
+**File:** `src/data/data_sources/offline_database.native.ts`
+
+```typescript
+function createAdapter() {
+  // Detection logic
+  if (Platform.OS === 'android' && isHermes() && isExpoGo()) {
+    // Falls back to MockDatabase
+    return null;
+  }
+  
+  // Attempts SQLite first
+  try {
+    const SQLiteAdapter = require('@nozbe/watermelondb/adapters/sqlite').default;
+    return new SQLiteAdapter({
+      schema: stationScoutSchema,
+      migrations,
+      dbName: 'stationscout',
+      jsi: true,  // JavaScript Interface for performance
+    });
+  } catch {
+    // Falls back to LokiJS (problematic on Hermes)
+    return new LokiJSAdapter({...});
+  }
+}
+```
+
+**Key Decision Points:**
+1. Expo Go + Android + Hermes = MockDatabase (no real storage)
+2. EAS Build + SQLite available = SQLite Adapter
+3. Fallback = LokiJS (causes crashes on Hermes)
+
+### 4.4 Hermes JavaScript Engine
+
+Hermes is Meta's JavaScript engine optimized for React Native:
+
+**Advantages:**
+- Faster startup time
+- Lower memory usage
+- Better performance on mobile
+
+**Constraints:**
+- Stricter JavaScript spec compliance
+- Some patterns that work in V8 fail in Hermes
+- Object.freeze behavior differs
+- Event constant handling differs
+
+---
+
+## 5. Data Architecture
+
+### 5.1 WatermelonDB Schema
+
+**File:** `src/data/db/schema.ts`  
+**Schema Version:** 3
+
+```typescript
+export const stationScoutSchema = appSchema({
+  version: 3,
+  tables: [
+    // Events (Ticketmaster data)
+    tableSchema({
+      name: 'events',
+      columns: [
+        { name: 'source_id', type: 'string', isIndexed: true },
+        { name: 'name', type: 'string' },
+        { name: 'url', type: 'string' },
+        { name: 'image_url', type: 'string', isOptional: true },
+        { name: 'start_date', type: 'string', isOptional: true },
+        { name: 'venue_name', type: 'string', isOptional: true },
+        { name: 'venue_address', type: 'string', isOptional: true },
+        { name: 'source', type: 'string' },
+        { name: 'latitude', type: 'number', isOptional: true },
+        { name: 'longitude', type: 'number', isOptional: true },
+        { name: 'created_at', type: 'number' },
+        { name: 'updated_at', type: 'number' },
+      ],
+    }),
+    
+    // Train operators (TOCs)
+    tableSchema({
+      name: 'train_operators',
+      columns: [
+        { name: 'name', type: 'string' },
+        { name: 'country', type: 'string', isOptional: true },
+        { name: 'logo_url', type: 'string', isOptional: true },
+        { name: 'updated_at', type: 'number' },
+      ],
+    }),
+    
+    // Railway lines
+    tableSchema({
+      name: 'railway_lines',
+      columns: [
+        { name: 'operator_id', type: 'string', isIndexed: true },
+        { name: 'name', type: 'string' },
+        { name: 'code', type: 'string', isOptional: true },
+        { name: 'color', type: 'string', isOptional: true },
+        { name: 'updated_at', type: 'number' },
+      ],
+    }),
+    
+    // Stations
+    tableSchema({
+      name: 'stations',
+      columns: [
+        { name: 'line_id', type: 'string', isIndexed: true },
+        { name: 'name', type: 'string' },
+        { name: 'code', type: 'string', isOptional: true },
+        { name: 'latitude', type: 'number' },
+        { name: 'longitude', type: 'number' },
+        { name: 'updated_at', type: 'number' },
+      ],
+    }),
+    
+    // User bookmarks (local only)
+    tableSchema({
+      name: 'bookmarks',
+      columns: [
+        { name: 'event_id', type: 'string', isIndexed: true },
+        { name: 'created_at', type: 'number' },
+      ],
+    }),
+    
+    // Offline sync queue
+    tableSchema({
+      name: 'pending_changes',
+      columns: [
+        { name: 'entity', type: 'string' },
+        { name: 'entity_id', type: 'string' },
+        { name: 'operation', type: 'string' },
+        { name: 'payload', type: 'string' },
+        { name: 'created_at', type: 'number' },
+      ],
+    }),
+  ],
+});
+```
+
+### 5.2 Data Flow Diagram
+
+```
+[Supabase Cloud]
+       |
+       | HTTPS REST API
+       v
+[SyncService.ts]
+       |
+       | Parses and transforms data
+       v
+[WatermelonDB]
+       |
+       +-- Web: LokiJS -> IndexedDB
+       |
+       +-- Native: SQLite -> File System
+       |
+       v
+[React Components]
+       |
+       | Observable queries
+       v
+[User Interface]
+```
+
+### 5.3 Sync Strategy
+
+**File:** `src/data/data_sources/SyncService.ts`
+
+```typescript
+// Sync flow on app launch
+export async function syncAll(): Promise<void> {
+  await syncOperators();   // Train operating companies
+  await syncLines();       // Railway lines  
+  await syncStations();    // Stations with coordinates
+  await syncEvents();      // Ticketmaster events (triggers Edge Function first)
+}
+```
+
+**Sync Trigger Points:**
+1. App launch (immediate)
+2. Every 5 minutes while app is active
+3. Manual pull-to-refresh on data screens
+
+---
+
+## 6. Supabase Backend
+
+### 6.1 Architecture Overview
+
+```
+[Supabase Project]
+       |
+       +-- PostgreSQL Database
+       |       |
+       |       +-- train_operators
+       |       +-- railway_lines
+       |       +-- stations (with PostGIS)
+       |       +-- events
+       |
+       +-- Edge Functions
+       |       |
+       |       +-- fetch-ticketmaster-events
+       |
+       +-- Authentication (not currently used for login)
+```
+
+### 6.2 Database Tables
+
+**train_operators**
+| Column | Type | Description |
+|--------|------|-------------|
+| id | uuid | Primary key |
+| name | text | Operator name |
+| code | text | Operator code (e.g., "GWR") |
+
+**railway_lines**
+| Column | Type | Description |
+|--------|------|-------------|
+| id | uuid | Primary key |
+| toc_id | uuid | Foreign key to train_operators |
+| name | text | Line name |
+| code | text | Line code |
+| color | text | Display color |
+
+**stations**
+| Column | Type | Description |
+|--------|------|-------------|
+| id | uuid | Primary key |
+| name | text | Station name |
+| crs_code | text | CRS code (e.g., "PAD") |
+| location | geography | PostGIS point (WGS84) |
+
+**events**
+| Column | Type | Description |
+|--------|------|-------------|
+| id | uuid | Primary key |
+| source_id | text | Ticketmaster event ID |
+| name | text | Event name |
+| url | text | Booking URL |
+| image_url | text | Event image |
+| start_date | timestamp | Event date |
+| venue_name | text | Venue name |
+| venue_address | text | Venue address |
+| location | geography | PostGIS point |
+| source | text | Always "ticketmaster" |
+
+### 6.3 Edge Function: fetch-ticketmaster-events
+
+**Purpose:** Fetches fresh event data from Ticketmaster API and stores in Supabase.
+
+**Invocation from App:**
+```typescript
+const response = await fetch(
+  `${supabaseUrl}/functions/v1/fetch-ticketmaster-events`,
+  {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${supabaseKey}`,
+      'Content-Type': 'application/json',
+    },
+  }
+);
+```
+
+**What it does:**
+1. Calls Ticketmaster Discovery API
+2. Filters for UK events
+3. Extracts event details, images, venue info
+4. Geocodes venue locations
+5. Upserts into Supabase `events` table
+
+### 6.4 PostGIS Coordinate Handling
+
+Supabase stores coordinates as PostGIS geography type. The app receives them as WKB hex strings:
+
+```
+0101000020E6100000... (hex encoded)
+```
+
+**Parsing in SyncService:**
+```typescript
+// Extract coordinates from PostGIS hex format
+const hexToDouble = (hexStr: string): number => {
+  const bytes = new Uint8Array(8);
+  for (let i = 0; i < 8; i++) {
+    bytes[i] = parseInt(hexStr.substr(i * 2, 2), 16);
+  }
+  const view = new DataView(bytes.buffer);
+  return view.getFloat64(0, true); // Little-endian
+};
+
+// Position in WKB: bytes 18-34 = longitude, 34-50 = latitude
+const lonHex = hex.substring(18, 34);
+const latHex = hex.substring(34, 50);
+```
+
+### 6.5 Authentication Approach
+
+**Current Implementation:** Custom REST wrapper, not using Supabase Auth JS client
+
+```typescript
+// src/data/data_sources/supabase_client.ts
+async signInWithPassword({ email, password }) {
+  const response = await fetch(
+    `${supabaseUrl}/auth/v1/token?grant_type=password`,
+    {
+      method: 'POST',
+      headers: {
+        'apikey': supabaseKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password }),
+    }
+  );
+  // Store tokens in AsyncStorage
+}
+```
+
+**Why custom wrapper:**
+- Supabase JS client had issues with React Native
+- Direct REST calls are more predictable
+- Easier to debug in constrained environments
+
+---
+
+## 7. Known Compatibility Issues
+
+### 7.1 LokiJS + Hermes Crash (Previously Fixed)
+
+**Error:**
+```
+Cannot assign to read-only property 'NONE' of object '#<Event>'
+```
+
+**Cause:** LokiJS creates event objects with frozen properties that Hermes can't modify.
+
+**Fix Applied:** `src/patches/lokijs-hermes-patch.js`
+
+```javascript
+// Intercept Object.freeze for event phase constants
+const originalFreeze = Object.freeze;
+Object.freeze = function patchedFreeze(obj) {
+  if (obj && 'NONE' in obj && 'BUBBLE' in obj && 'CAPTURE' in obj) {
+    return obj; // Don't freeze event constants
+  }
+  return originalFreeze.call(Object, obj);
+};
+
+// Make event constants writable
+const originalDefineProperty = Object.defineProperty;
+Object.defineProperty = function patchedDefineProperty(obj, prop, descriptor) {
+  if ((prop === 'NONE' || prop === 'BUBBLE' || prop === 'CAPTURE') &&
+      descriptor?.writable === false) {
+    descriptor.writable = true;
+    descriptor.configurable = true;
+  }
+  return originalDefineProperty.call(Object, obj, prop, descriptor);
+};
+```
+
+**Patch Loading Order:**
+```javascript
+// index.js - MUST be first import
+import './src/patches/lokijs-hermes-patch';
+import { registerRootComponent } from 'expo';
+import App from './App';
+```
+
+### 7.2 Current Issue: Button Press Not Registering
+
+**Symptoms:**
+- Button renders correctly
+- Tap/click produces no response
+- No console logs from onPress handlers
+- Works perfectly on web
+
+**Possible Causes:**
+
+1. **react-native-gesture-handler not initialized**
+   - Requires wrapping app in GestureHandlerRootView
+   - Must be imported early
+
+2. **Touch event interception**
+   - Parent ScrollView or KeyboardAvoidingView consuming touches
+   - Gesture responder conflicts
+
+3. **Hermes async/event loop differences**
+   - Event handlers may be registered differently
+
+4. **PaperProvider theme conflicts**
+   - React Native Paper's touch ripple implementation
+
+### 7.3 Expo Go vs EAS Build
+
+| Feature | Expo Go | EAS Development Build |
+|---------|---------|----------------------|
+| SQLite Support | No | Yes |
+| Custom Native Code | No | Yes |
+| WatermelonDB SQLite | Falls back to mock | Works |
+| Hermes Patches | Limited | Full |
+| Testing Recommended | No | Yes |
+
+---
+
+## 8. Build Configuration
+
+### 8.1 EAS Configuration
+
+**File:** `eas.json`
+
+```json
+{
+  "cli": {
+    "version": ">= 16.3.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleDebug"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "production": {
+      "autoIncrement": true
+    }
+  }
+}
+```
+
+### 8.2 Build Profiles Explained
+
+| Profile | Purpose | Output | Use For |
+|---------|---------|--------|---------|
+| development | Live reload dev | APK | Debugging with hot reload |
+| preview | Internal testing | APK | QA testing, stakeholder demos |
+| production | App store | AAB | Google Play submission |
+
+### 8.3 Babel Configuration
+
+**File:** `babel.config.js`
+
+```javascript
+module.exports = function(api) {
+  api.cache(true);
+  return {
+    presets: ['babel-preset-expo'],
+    plugins: [
+      // Required for WatermelonDB models
+      ['@babel/plugin-proposal-decorators', { legacy: true }],
+      ['@babel/plugin-transform-class-properties', { loose: true }],
+      
+      // Path aliases
+      ['module-resolver', {
+        alias: {
+          '@': './src',
+          '@components': './src/presentation/components',
+          '@screens': './src/presentation/screens',
+          '@data': './src/data',
+        }
+      }],
+      
+      // Required for animations
+      'react-native-reanimated/plugin',
+    ],
+  };
+};
+```
+
+### 8.4 App Configuration
+
+**File:** `app.json` (key sections)
+
+```json
+{
+  "expo": {
+    "name": "StationScout",
+    "slug": "stationscout",
+    "version": "1.0.0",
+    "platforms": ["ios", "android", "web"],
+    "plugins": [
+      "expo-dev-client",
+      ["@lovesworking/watermelondb-expo-plugin-sdk-52-plus", {}],
+      ["expo-build-properties", {
+        "android": {
+          "usesCleartextTraffic": true
+        }
+      }]
+    ]
+  }
+}
+```
+
+---
+
+## 9. Recommended Debugging Steps
+
+### 9.1 Immediate Diagnostics
+
+1. **Add touch debugging to LoginScreen:**
+```typescript
+<View 
+  style={styles.formContainer}
+  onTouchStart={() => console.log('[Touch] Container touched')}
+  onTouchEnd={() => console.log('[Touch] Container touch ended')}
+>
+```
+
+2. **Test minimal button:**
+```typescript
+import { TouchableOpacity, Text, Alert } from 'react-native';
+
+<TouchableOpacity 
+  onPress={() => Alert.alert('Pressed!')}
+  style={{ padding: 50, backgroundColor: 'red' }}
+>
+  <Text>TEST BUTTON</Text>
+</TouchableOpacity>
+```
+
+3. **Verify gesture handler initialization in App.tsx:**
+```typescript
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+
+export default function App() {
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      {/* rest of app */}
+    </GestureHandlerRootView>
+  );
+}
+```
+
+### 9.2 Check Gesture Handler Setup
+
+1. Ensure `react-native-gesture-handler` is imported at the very top of `index.js`:
+```javascript
+import 'react-native-gesture-handler'; // MUST be first
+import './src/patches/lokijs-hermes-patch';
+import { registerRootComponent } from 'expo';
+```
+
+2. Verify installation in native modules (EAS build only)
+
+### 9.3 Test Without React Native Paper
+
+Replace Paper Button with basic React Native components:
+```typescript
+import { TouchableOpacity, Text } from 'react-native';
+
+<TouchableOpacity 
+  onPress={handleLogin}
+  style={{ backgroundColor: '#1E3A5F', padding: 16, borderRadius: 12 }}
+>
+  <Text style={{ color: 'white', textAlign: 'center' }}>Sign In</Text>
+</TouchableOpacity>
+```
+
+### 9.4 Check for Conflicting Wrappers
+
+Review parent component hierarchy:
+- KeyboardAvoidingView (can intercept touches)
+- ScrollView (can consume gestures)
+- Modal (can block touch propagation)
+
+### 9.5 Create Minimal Test Build
+
+1. Create a minimal screen with just a button
+2. Build with EAS development profile
+3. Test touch handling in isolation
+4. Gradually add complexity to identify culprit
+
+---
+
+## 10. File Reference
+
+### 10.1 Critical Files for This Issue
+
+| File | Purpose |
+|------|---------|
+| `index.js` | Entry point, patch loading order |
+| `App.tsx` | Provider wrapping, gesture handler root |
+| `src/presentation/screens/auth/LoginScreen.tsx` | Login UI with buttons |
+| `src/patches/lokijs-hermes-patch.js` | Hermes compatibility patches |
+| `src/data/data_sources/offline_database.native.ts` | Native database adapter |
+
+### 10.2 Configuration Files
+
+| File | Purpose |
+|------|---------|
+| `app.json` | Expo configuration |
+| `eas.json` | EAS Build configuration |
+| `babel.config.js` | Babel with decorators |
+| `tsconfig.json` | TypeScript configuration |
+| `package.json` | Dependencies |
+
+### 10.3 Data Layer Files
+
+| File | Purpose |
+|------|---------|
+| `src/data/db/schema.ts` | WatermelonDB schema |
+| `src/data/db/models.ts` | Model classes |
+| `src/data/db/migrations.ts` | Schema migrations |
+| `src/data/data_sources/SyncService.ts` | Supabase sync logic |
+| `src/data/data_sources/supabase_client.ts` | Supabase client wrapper |
+
+---
+
+## Appendix A: Environment Variables
+
+| Variable | Purpose |
+|----------|---------|
+| `EXPO_PUBLIC_SUPABASE_URL` | Supabase project URL |
+| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous API key |
+
+---
+
+## Appendix B: Build Commands
+
+```bash
+# Development build (for debugging)
+eas build --profile development --platform android
+
+# Preview build (for internal testing)
+eas build --profile preview --platform android
+
+# Production build (for Play Store)
+eas build --profile production --platform android
+
+# Start development server
+npx expo start --dev-client
+```
+
+---
+
+## Appendix C: Contact Points
+
+For questions about:
+- **Supabase Edge Functions**: Check Supabase project dashboard
+- **EAS Build Issues**: https://docs.expo.dev/eas/
+- **WatermelonDB**: https://watermelondb.dev/
+- **React Native Paper**: https://callstack.github.io/react-native-paper/
+
+---
+
+*Document generated for external technical consultation. Please share with React Native / Expo specialists for debugging assistance.*
