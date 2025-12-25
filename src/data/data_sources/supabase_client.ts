@@ -8,14 +8,12 @@ import {
   SupabaseClient as SupabaseClientType,
   createClient,
 } from '@supabase/supabase-js';
-
-// No longer need to import from '@env'
+import { AppState, Platform } from 'react-native';
 
 class SupabaseClientService {
   private readonly supabase: SupabaseClientType;
 
   constructor() {
-    // This is the Expo way to access environment variables
     const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
     const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
     
@@ -29,6 +27,7 @@ class SupabaseClientService {
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: false,
+        flowType: 'pkce',
       },
       global: {
         headers: {
@@ -36,22 +35,51 @@ class SupabaseClientService {
         },
       },
     });
+
+    // Handle app state changes for token refresh (Android native fix)
+    if (Platform.OS !== 'web') {
+      AppState.addEventListener('change', (state) => {
+        if (state === 'active') {
+          this.supabase.auth.startAutoRefresh();
+        } else {
+          this.supabase.auth.stopAutoRefresh();
+        }
+      });
+    }
   }
 
   get client() {
     return this.supabase;
   }
 
-  signUp(credentials: SignUpWithPasswordCredentials) {
-    return this.supabase.auth.signUp(credentials);
+  async signUp(credentials: SignUpWithPasswordCredentials) {
+    try {
+      const result = await this.supabase.auth.signUp(credentials);
+      return result;
+    } catch (error: any) {
+      console.error('[SupabaseClient] SignUp error:', error);
+      return { data: null, error: { message: error?.message || 'Sign up failed' } };
+    }
   }
 
-  signIn(credentials: SignInWithPasswordCredentials) {
-    return this.supabase.auth.signInWithPassword(credentials);
+  async signIn(credentials: SignInWithPasswordCredentials) {
+    try {
+      const result = await this.supabase.auth.signInWithPassword(credentials);
+      return result;
+    } catch (error: any) {
+      console.error('[SupabaseClient] SignIn error:', error);
+      return { data: null, error: { message: error?.message || 'Sign in failed' } };
+    }
   }
 
-  signOut() {
-    return this.supabase.auth.signOut();
+  async signOut() {
+    try {
+      const result = await this.supabase.auth.signOut();
+      return result;
+    } catch (error: any) {
+      console.error('[SupabaseClient] SignOut error:', error);
+      return { error: { message: error?.message || 'Sign out failed' } };
+    }
   }
 }
 

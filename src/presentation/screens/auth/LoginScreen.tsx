@@ -103,6 +103,8 @@ export default function LoginScreen({ navigation }: Props) {
               mode="flat"
               underlineColor="transparent"
               activeUnderlineColor={colors.primary}
+              textColor={colors.text}
+              placeholderTextColor={colors.textMuted}
             />
           </View>
 
@@ -122,6 +124,8 @@ export default function LoginScreen({ navigation }: Props) {
               mode="flat"
               underlineColor="transparent"
               activeUnderlineColor={colors.primary}
+              textColor={colors.text}
+              placeholderTextColor={colors.textMuted}
               right={
                 <TextInput.Icon 
                   icon={showPassword ? 'eye-off' : 'eye'} 
@@ -239,6 +243,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'transparent',
     fontSize: 16,
+    color: '#1E293B',
   },
   primaryButton: {
     flexDirection: 'row',
