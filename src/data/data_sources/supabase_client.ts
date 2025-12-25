@@ -104,80 +104,74 @@ class SupabaseClientService {
       return { data: null, error: { message: 'Supabase not configured' } };
     }
 
-    try {
-      const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
-        method: 'POST',
-        headers: {
-          'apikey': supabaseKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+    // Use XMLHttpRequest instead of fetch to avoid Hermes event emitter issues
+    return new Promise((resolve) => {
+      try {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `${supabaseUrl}/auth/v1/token?grant_type=password`, true);
+        xhr.setRequestHeader('apikey', supabaseKey);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        
+        xhr.onreadystatechange = async () => {
+          if (xhr.readyState === 4) {
+            try {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                const data = JSON.parse(xhr.responseText);
+                const user: AuthUser = {
+                  id: data.user?.id || '',
+                  email: credentials.email,
+                  access_token: data.access_token,
+                  refresh_token: data.refresh_token,
+                };
+
+                await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+                this.currentUser = user;
+                this.notifyListeners();
+                resolve({ data: { user, session: user }, error: null });
+              } else {
+                let errorMsg = 'Sign in failed';
+                try {
+                  const errorData = JSON.parse(xhr.responseText);
+                  errorMsg = errorData.error_description || errorData.msg || errorMsg;
+                } catch {}
+                resolve({ data: null, error: { message: errorMsg } });
+              }
+            } catch (parseError: any) {
+              // Suppress Hermes errors during JSON parsing
+              if (parseError?.message?.includes('NONE')) {
+                // Try to check if login succeeded anyway
+                setTimeout(async () => {
+                  try {
+                    const stored = await AsyncStorage.getItem(AUTH_USER_KEY);
+                    if (stored) {
+                      const user = JSON.parse(stored);
+                      this.currentUser = user;
+                      this.notifyListeners();
+                      resolve({ data: { user, session: user }, error: null });
+                      return;
+                    }
+                  } catch {}
+                  resolve({ data: null, error: { message: 'Login failed. Please try again.' } });
+                }, 500);
+              } else {
+                resolve({ data: null, error: { message: parseError?.message || 'Network error' } });
+              }
+            }
+          }
+        };
+
+        xhr.onerror = () => {
+          resolve({ data: null, error: { message: 'Network error. Please check your connection.' } });
+        };
+
+        xhr.send(JSON.stringify({
           email: credentials.email,
           password: credentials.password,
-        }),
-      });
-
-      let data;
-      try {
-        data = await response.json();
-      } catch (jsonError: any) {
-        // Handle Hermes JSON parsing issues
-        if (jsonError?.message?.includes('NONE')) {
-          // Retry the request
-          const retryResponse = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
-            method: 'POST',
-            headers: {
-              'apikey': supabaseKey,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              email: credentials.email,
-              password: credentials.password,
-            }),
-          });
-          data = await retryResponse.json();
-          if (!retryResponse.ok) {
-            return { data: null, error: { message: data.error_description || data.msg || 'Sign in failed' } };
-          }
-        } else {
-          throw jsonError;
-        }
+        }));
+      } catch (e: any) {
+        resolve({ data: null, error: { message: e?.message || 'Request failed' } });
       }
-
-      if (!response.ok) {
-        return { data: null, error: { message: data.error_description || data.msg || 'Sign in failed' } };
-      }
-
-      const user: AuthUser = {
-        id: data.user?.id || '',
-        email: credentials.email,
-        access_token: data.access_token,
-        refresh_token: data.refresh_token,
-      };
-
-      await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
-      this.currentUser = user;
-      this.notifyListeners();
-
-      return { data: { user, session: user }, error: null };
-    } catch (e: any) {
-      // Suppress Hermes NONE errors - they often don't affect actual operation
-      if (e?.message?.includes('NONE') || e?.message?.includes('read-only property')) {
-        console.log('[Auth] Hermes warning during sign in - checking if login succeeded');
-        // Check if we have stored credentials from a successful login
-        try {
-          const stored = await AsyncStorage.getItem(AUTH_USER_KEY);
-          if (stored) {
-            const user = JSON.parse(stored);
-            this.currentUser = user;
-            this.notifyListeners();
-            return { data: { user, session: user }, error: null };
-          }
-        } catch {}
-        return { data: null, error: { message: 'Login may have succeeded. Please try again or restart the app.' } };
-      }
-      return { data: null, error: { message: e?.message || 'Network error' } };
-    }
+    });
   }
 
   async signOut(): Promise<{ error: { message: string } | null }> {
