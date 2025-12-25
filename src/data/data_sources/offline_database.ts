@@ -1,6 +1,12 @@
+import { Platform } from 'react-native';
 import { Database } from '@nozbe/watermelondb';
+import { setGenerator } from '@nozbe/watermelondb/utils/common/randomId';
+import * as Crypto from 'expo-crypto';
+
 import LokiJSAdapter from '@nozbe/watermelondb/adapters/lokijs';
+
 import { stationScoutSchema } from '../db/schema';
+import { migrations } from '../db/migrations';
 import {
   Event,
   TrainOperator,
@@ -10,12 +16,35 @@ import {
   PendingChange,
 } from '../db/models';
 
-const adapter = new LokiJSAdapter({
-  schema: stationScoutSchema,
-  useWebWorker: false,
-  useIncrementalIndexedDB: true,
-  dbName: 'StationScoutDB',
-});
+setGenerator(() => Crypto.randomUUID());
+
+function createAdapter() {
+  if (Platform.OS === 'web') {
+    return new LokiJSAdapter({
+      schema: stationScoutSchema,
+      migrations,
+      useWebWorker: false,
+      useIncrementalIndexedDB: true,
+      dbName: 'stationscout_web',
+      onQuotaExceededError: (error: any) => {
+        console.error('IndexedDB quota exceeded:', error);
+      },
+    });
+  } else {
+    const SQLiteAdapter = require('@nozbe/watermelondb/adapters/sqlite').default;
+    return new SQLiteAdapter({
+      schema: stationScoutSchema,
+      migrations,
+      dbName: 'stationscout',
+      jsi: true,
+      onSetUpError: (error: any) => {
+        console.error('Database setup error:', error);
+      },
+    });
+  }
+}
+
+const adapter = createAdapter();
 
 export const database = new Database({
   adapter,

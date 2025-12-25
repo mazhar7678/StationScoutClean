@@ -1,0 +1,291 @@
+This is an excellent technical brief. You've correctly identified the root cause: Hermes strictly enforces ES specification for frozen objects, while LokiJS's event emitter shim attempts to modify frozen properties.
+
+Let me provide you with a comprehensive fix strategy.
+
+Recommended Solution: SQLite Adapter for Android
+Since you're using Expo SDK 54, the cleanest solution is to switch WatermelonDB to use the SQLite adapter for native platforms while keeping LokiJS for web. This requires a development build (not Expo Go).
+
+Step-by-Step Implementation
+Step 1: Install Required Dependencies
+bash
+# Install expo-sqlite (required for WatermelonDB SQLite adapter)
+npx expo install expo-sqlite
+
+# Install the JSI SQLite adapter for WatermelonDB
+npm install @nozbe/watermelondb
+
+Step 2: Update Your Database Initialization
+Create a platform-aware database initialization:
+
+typescript
+// src/data/data_sources/offline_database.ts
+
+import { Platform } from 'react-native';
+import { Database } from '@nozbe/watermelondb';
+import { setGenerator } from '@nozbe/watermelondb/utils/common/randomId';
+import * as Crypto from 'expo-crypto';
+
+// Import adapters conditionally
+import SQLiteAdapter from '@nozbe/watermelondb/adapters/sqlite';
+import LokiJSAdapter from '@nozbe/watermelondb/adapters/lokijs';
+
+import { schema } from '../db/schema';
+import { migrations } from '../db/migrations'; // Create this if you don't have it
+
+// Use expo-crypto for secure random ID generation
+setGenerator(() => Crypto.randomUUID());
+
+// Platform-specific adapter creation
+function createAdapter() {
+  if (Platform.OS === 'web') {
+    // Use LokiJS for web (works fine with V8)
+    return new LokiJSAdapter({
+      schema,
+      migrations,
+      useWebWorker: false,
+      useIncrementalIndexedDB: true,
+      dbName: 'stationscout_web',
+      // Disable problematic features that trigger the event emitter issue
+      onQuotaExceededError: (error) => {
+        console.error('IndexedDB quota exceeded:', error);
+      },
+    });
+  } else {
+    // Use SQLite for iOS and Android (avoids Hermes issue entirely)
+    return new SQLiteAdapter({
+      schema,
+      migrations,
+      dbName: 'stationscout',
+      // Enable JSI for better performance (optional but recommended)
+      jsi: true,
+      // Called when database is corrupted
+      onSetUpError: (error) => {
+        console.error('Database setup error:', error);
+        // In production, you might want to delete and recreate the database
+      },
+    });
+  }
+}
+
+const adapter = createAdapter();
+
+export const database = new Database({
+  adapter,
+  modelClasses: [
+    // Import and list your model classes here
+    // e.g., Station, User, etc.
+  ],
+});
+
+export default database;
+
+Step 3: Create Migrations File (if missing)
+typescript
+// src/data/db/migrations.ts
+
+import { schemaMigrations } from '@nozbe/watermelondb/Schema/migrations';
+
+export const migrations = schemaMigrations({
+  migrations: [
+    // Add migrations here as your schema evolves
+    // {
+    //   toVersion: 2,
+    //   steps: [
+    //     addColumns({
+    //       table: 'stations',
+    //       columns: [
+    //         { name: 'new_column', type: 'string' }
+    //       ]
+    //     })
+    //   ]
+    // }
+  ],
+});
+
+Step 4: Install expo-crypto for Secure IDs
+bash
+npx expo install expo-crypto
+
+Step 5: Update app.json for Native Builds
+json
+{
+  "expo": {
+    "name": "StationScout",
+    "slug": "StationScoutClean",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "stationscoutclean",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yourcompany.stationscout"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.yourcompany.stationscout"
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "expo-crypto",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff",
+          "dark": {
+            "backgroundColor": "#000000"
+          }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
+
+Step 6: Create a Development Build
+You cannot use Expo Go with SQLite adapter. You need a development build:
+
+bash
+# Install EAS CLI globally if not already installed
+npm install -g eas-cli
+
+# Login to your Expo account
+eas login
+
+# Initialize EAS configuration
+eas build:configure
+
+This creates an eas.json file. Update it:
+
+json
+{
+  "cli": {
+    "version": ">= 5.0.0"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": true
+      }
+    },
+    "preview": {
+      "distribution": "internal"
+    },
+    "production": {}
+  },
+  "submit": {
+    "production": {}
+  }
+}
+
+Step 7: Build and Install Development Client
+bash
+# Build for Android (creates APK for testing)
+eas build --profile development --platform android
+
+# OR build for iOS simulator
+eas build --profile development --platform ios
+
+After the build completes, download and install the APK on your Android device.
+
+Step 8: Run Your App with Development Build
+bash
+# Start the development server
+npx expo start --dev-client
+
+Scan the QR code with your development build app (not Expo Go).
+
+Alternative: Quick Fix for Expo Go Testing
+If you need to continue testing in Expo Go while preparing the production fix, here's a temporary workaround that disables WatermelonDB on Hermes:
+
+typescript
+// src/data/data_sources/offline_database.ts
+
+import { Platform } from 'react-native';
+import { Database } from '@nozbe/watermelondb';
+import LokiJSAdapter from '@nozbe/watermelondb/adapters/lokijs';
+import { schema } from '../db/schema';
+
+// Detect Hermes engine
+const isHermes = () => !!global.HermesInternal;
+
+// Create a mock database for Hermes (in-memory only, no persistence)
+function createMockDatabase() {
+  console.warn(
+    'WatermelonDB is running in mock mode on Hermes. Data will not persist.'
+  );
+  
+  // Return a minimal mock that won't crash
+  const adapter = new LokiJSAdapter({
+    schema,
+    useWebWorker: false,
+    useIncrementalIndexedDB: false, // Disable IndexedDB entirely
+    dbName: 'stationscout_mock',
+  });
+
+  return new Database({
+    adapter,
+    modelClasses: [],
+  });
+}
+
+function createRealDatabase() {
+  const adapter = new LokiJSAdapter({
+    schema,
+    useWebWorker: false,
+    useIncrementalIndexedDB: true,
+    dbName: 'stationscout',
+  });
+
+  return new Database({
+    adapter,
+    modelClasses: [],
+  });
+}
+
+// Use mock on Android with Hermes, real database elsewhere
+export const database = 
+  Platform.OS === 'android' && isHermes() 
+    ? createMockDatabase() 
+    : createRealDatabase();
+
+export default database;
+
+⚠️ This is only for development testing. The SQLite solution is required for production.
+
+Summary: Action Plan
+Phase	Action	Timeline
+Immediate	Apply the Hermes detection workaround for Expo Go testing	Today
+Short-term	Set up EAS Build and create development build with SQLite	1-2 days
+Medium-term	Test thoroughly on Android device with SQLite adapter	1 week
+Production	Deploy with SQLite for native, LokiJS for web	When ready
+Files to Share
+To help me verify your implementation, please share:
+
+src/data/db/schema.ts - Your WatermelonDB schema
+src/data/data_sources/offline_database.ts - Current implementation
+Any model files in src/data/models/
+This will let me ensure the SQLite adapter configuration matches your data structure.
