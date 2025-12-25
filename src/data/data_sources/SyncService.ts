@@ -1,13 +1,36 @@
-import { SupabaseClient } from './supabase_client';
 import { database } from './offline_database';
 import { Event, TrainOperator, RailwayLine, Station } from '../db/models';
 
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+
 function isSupabaseReady(): boolean {
-  try {
-    return SupabaseClient.client !== undefined;
-  } catch {
-    return false;
+  return !!(supabaseUrl && supabaseKey);
+}
+
+// Direct REST API call to avoid Supabase JS client issues with Hermes
+async function supabaseQuery(table: string, params?: string): Promise<any[]> {
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('Supabase not configured');
   }
+  
+  const url = `${supabaseUrl}/rest/v1/${table}${params ? `?${params}` : ''}`;
+  
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'apikey': supabaseKey,
+      'Authorization': `Bearer ${supabaseKey}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation',
+    },
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Supabase query failed: ${response.status}`);
+  }
+  
+  return response.json();
 }
 
 async function refreshTicketmasterEvents(): Promise<void> {
@@ -57,20 +80,11 @@ export async function syncEvents(): Promise<void> {
 
     const eventsCollection = database.get<Event>('events');
     const today = new Date().toISOString().split('T')[0];
-    const { data: supabaseEvents, error } = await SupabaseClient.client
-      .from('events')
-      .select('*')
-      .eq('source', 'ticketmaster')
-      .not('image_url', 'is', null)
-      .not('url', 'is', null)
-      .or(`start_date.gte.${today},start_date.is.null`)
-      .order('start_date', { ascending: true })
-      .limit(5000);
+    
+    // Use direct REST API with PostgREST query params
+    const params = `source=eq.ticketmaster&image_url=not.is.null&url=not.is.null&or=(start_date.gte.${today},start_date.is.null)&order=start_date.asc&limit=5000`;
+    const supabaseEvents = await supabaseQuery('events', params);
 
-    if (error) {
-      console.error('[SyncService] Error fetching events from Supabase:', error.message);
-      return;
-    }
     if (!supabaseEvents || supabaseEvents.length === 0) {
       console.log('[SyncService] No events found in Supabase to sync.');
       return;
@@ -156,12 +170,8 @@ export async function syncOperators(): Promise<void> {
   try {
     console.log('[SyncService] Starting operator sync...');
     const collection = database.get<TrainOperator>('train_operators');
-    const { data, error } = await SupabaseClient.client.from('train_operators').select('*');
+    const data = await supabaseQuery('train_operators');
 
-    if (error) {
-      console.error('[SyncService] Error fetching operators:', error.message);
-      return;
-    }
     if (!data || data.length === 0) {
       console.log('[SyncService] No operators found.');
       return;
@@ -202,12 +212,8 @@ export async function syncLines(): Promise<void> {
   try {
     console.log('[SyncService] Starting line sync...');
     const collection = database.get<RailwayLine>('railway_lines');
-    const { data, error } = await SupabaseClient.client.from('railway_lines').select('*');
+    const data = await supabaseQuery('railway_lines');
 
-    if (error) {
-      console.error('[SyncService] Error fetching lines:', error.message);
-      return;
-    }
     if (!data || data.length === 0) {
       console.log('[SyncService] No lines found.');
       return;
@@ -249,12 +255,8 @@ export async function syncStations(): Promise<void> {
   try {
     console.log('[SyncService] Starting station sync...');
     const collection = database.get<Station>('stations');
-    const { data, error } = await SupabaseClient.client.from('stations').select('*');
+    const data = await supabaseQuery('stations');
 
-    if (error) {
-      console.error('[SyncService] Error fetching stations:', error.message);
-      return;
-    }
     if (!data || data.length === 0) {
       console.log('[SyncService] No stations found.');
       return;
