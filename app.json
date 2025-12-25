@@ -41,11 +41,28 @@
             "backgroundColor": "#000000"
           }
         }
+      ],
+      ["@lovesworking/watermelondb-expo-plugin-sdk-52-plus"],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "packagingOptions": {
+              "pickFirst": ["**/libc++_shared.so"]
+            }
+          }
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "68975b98-456d-4a8f-9378-6f013a3e3b43"
+      }
     }
   }
 }
