@@ -1,11 +1,11 @@
 // src/data/store/authStore.ts
 import { create } from 'zustand';
-import { Session } from '@supabase/supabase-js';
+import { AuthUser } from '../data_sources/supabase_client';
 
 interface AuthState {
-  session: Session | null;
+  session: AuthUser | null;
   isLoading: boolean;
-  setSession: (session: Session | null) => void;
+  setSession: (session: AuthUser | null) => void;
   setIsLoading: (loading: boolean) => void;
 }
 
@@ -13,6 +13,5 @@ export const useAuthStore = create<AuthState>((set) => ({
   session: null,
   isLoading: true,
   setSession: (session) => set({ session }),
-  // THIS IS THE FIX: Changed 'isLoading' to 'loading' to match the function parameter
   setIsLoading: (loading) => set({ isLoading: loading }), 
 }));
