@@ -1,0 +1,360 @@
+This is an excellent technical document. Based on my analysis, here are the most likely causes and solutions for your Android button press issue:
+
+---
+
+## Root Cause Analysis
+
+### Most Likely Cause: GestureHandlerRootView Missing or Misconfigured
+
+Looking at your architecture, I see you're using:
+- `react-native-gesture-handler` ~2.28.0
+- React Native Paper (which depends on gesture handler)
+- React Navigation (which also uses gesture handler)
+
+**The #1 cause of "button presses not registering" on Android is improper gesture handler initialization.**
+
+---
+
+## Immediate Fixes to Try
+
+### Fix 1: Verify index.js Import Order
+
+Your `index.js` **must** have this exact order:
+
+```javascript
+// index.js
+
+// 1. Gesture handler MUST be first (before React, before anything)
+import 'react-native-gesture-handler';
+
+// 2. Your Hermes patches second
+import './src/patches/lokijs-hermes-patch';
+
+// 3. Then everything else
+import { registerRootComponent } from 'expo';
+import App from './App';
+
+registerRootComponent(App);
+```
+
+**Why this matters:** On Android, `react-native-gesture-handler` replaces the native gesture system. If it's imported after other React Native code has initialized, touch events get lost.
+
+---
+
+### Fix 2: Wrap Entire App in GestureHandlerRootView
+
+Your `App.tsx` must have `GestureHandlerRootView` as the **outermost** wrapper:
+
+```typescript
+// App.tsx
+
+import 'react-native-gesture-handler'; // Also import here for safety
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { PaperProvider } from 'react-native-paper';
+import { NavigationContainer } from '@react-navigation/native';
+// ... other imports
+
+export default function App() {
+  return (
+    // GestureHandlerRootView MUST be outermost
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <PaperProvider theme={theme}>
+          <NavigationContainer>
+            {/* Your app content */}
+          </NavigationContainer>
+        </PaperProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
+  );
+}
+```
+
+**Critical:** The `style={{ flex: 1 }}` is required! Without it, the gesture handler view has zero height and won't capture touches.
+
+---
+
+### Fix 3: Check for Conflicting Touch Handlers in LoginScreen
+
+Based on your document, the LoginScreen likely has a structure like this. Look for these issues:
+
+```typescript
+// PROBLEMATIC PATTERNS TO CHECK FOR:
+
+// ❌ ScrollView with keyboard dismiss might intercept touches
+<ScrollView 
+  keyboardShouldPersistTaps="never"  // Change to "handled" or "always"
+>
+
+// ❌ KeyboardAvoidingView can block touches on Android
+<KeyboardAvoidingView 
+  behavior="padding"  // Try "height" on Android instead
+>
+
+// ❌ Pressable/TouchableOpacity inside another touchable
+<TouchableOpacity>
+  <Pressable onPress={handleLogin}>  // Nested touchables conflict
+  </Pressable>
+</TouchableOpacity>
+
+// ❌ View with pointerEvents might block touches
+<View style={styles.overlay} pointerEvents="box-only">
+```
+
+**Fix the ScrollView:**
+```typescript
+<ScrollView 
+  keyboardShouldPersistTaps="handled"  // This is crucial!
+  contentContainerStyle={{ flexGrow: 1 }}
+>
+```
+
+---
+
+### Fix 4: Test with Pure React Native Button
+
+Add this diagnostic button to your LoginScreen to isolate the issue:
+
+```typescript
+import { TouchableOpacity, Text, Alert, View } from 'react-native';
+
+// Add this OUTSIDE all your other wrappers, right at the top of the screen
+<View style={{ backgroundColor: 'red', padding: 20, margin: 20 }}>
+  <TouchableOpacity
+    onPress={() => {
+      console.log('TEST BUTTON PRESSED');
+      Alert.alert('Success', 'Touch is working!');
+    }}
+    style={{ 
+      backgroundColor: 'blue', 
+      padding: 20,
+      // Ensure it's touchable
+      minHeight: 48,
+      minWidth: 48,
+    }}
+    activeOpacity={0.7}
+  >
+    <Text style={{ color: 'white', fontSize: 18, textAlign: 'center' }}>
+      TEST TOUCH
+    </Text>
+  </TouchableOpacity>
+</View>
+```
+
+**If this button works:** The issue is with React Native Paper's Button or your form structure.
+
+**If this button doesn't work:** The issue is gesture handler initialization or a parent component blocking touches.
+
+---
+
+### Fix 5: React Native Paper Specific Fix
+
+React Native Paper's Button uses `Pressable` internally with ripple effects. On some Android devices/configurations, this can fail. Try this:
+
+```typescript
+import { Button } from 'react-native-paper';
+
+<Button
+  mode="contained"
+  onPress={handleLogin}
+  // Add these props to debug
+  onPressIn={() => console.log('Press IN detected')}
+  onPressOut={() => console.log('Press OUT detected')}
+  // Force touch feedback
+  android_ripple={{ color: 'rgba(255,255,255,0.3)' }}
+  // Ensure it's not disabled
+  disabled={false}
+  // Add explicit touch area
+  contentStyle={{ minHeight: 48 }}
+>
+  Sign In
+</Button>
+```
+
+---
+
+## Systematic Debugging Approach
+
+### Step 1: Add Touch Logging Throughout
+
+```typescript
+// In LoginScreen.tsx, wrap everything with touch loggers:
+
+<View 
+  style={{ flex: 1 }}
+  onStartShouldSetResponder={() => {
+    console.log('[LoginScreen] Root view touched');
+    return false; // Don't capture, just log
+  }}
+>
+  <View 
+    style={styles.formContainer}
+    onStartShouldSetResponder={() => {
+      console.log('[LoginScreen] Form container touched');
+      return false;
+    }}
+  >
+    {/* Your form content */}
+    
+    <View
+      onStartShouldSetResponder={() => {
+        console.log('[LoginScreen] Button wrapper touched');
+        return false;
+      }}
+    >
+      <Button onPress={() => console.log('BUTTON ONPRESS FIRED!')}>
+        Sign In
+      </Button>
+    </View>
+  </View>
+</View>
+```
+
+**Expected output when tapping button:**
+```
+[LoginScreen] Root view touched
+[LoginScreen] Form container touched
+[LoginScreen] Button wrapper touched
+BUTTON ONPRESS FIRED!
+```
+
+**If you see the first three but not the last:** React Native Paper's Button is the problem.
+
+**If you see nothing:** GestureHandlerRootView or a parent is blocking touches.
+
+---
+
+### Step 2: Check for Absolutely Positioned Overlays
+
+A common cause is an invisible overlay covering the button:
+
+```typescript
+// Search your LoginScreen for patterns like:
+
+// ❌ Absolutely positioned views can block touches
+<View style={{ 
+  position: 'absolute', 
+  top: 0, 
+  left: 0, 
+  right: 0, 
+  bottom: 0,  // This covers everything!
+  // If missing pointerEvents="none", it blocks touches
+}}>
+
+// ✅ Fix: Add pointerEvents
+<View style={{ position: 'absolute', ... }} pointerEvents="none">
+```
+
+---
+
+### Step 3: Check Your Navigation Setup
+
+If you're using React Navigation with custom screens:
+
+```typescript
+// In your Navigator, ensure screens don't have gesture conflicts:
+
+<Stack.Screen 
+  name="Login" 
+  component={LoginScreen}
+  options={{
+    // These can interfere with touches
+    gestureEnabled: false,  // Try disabling
+    animationEnabled: true,
+  }}
+/>
+```
+
+---
+
+## Configuration Verification Checklist
+
+| Check | Expected | How to Verify |
+|-------|----------|---------------|
+| `react-native-gesture-handler` in package.json | ~2.28.0 | ✓ You have this |
+| Import at top of index.js | First import | Check file |
+| GestureHandlerRootView wraps app | Outermost component | Check App.tsx |
+| GestureHandlerRootView has `flex: 1` | Yes | Check style prop |
+| ScrollView has `keyboardShouldPersistTaps` | "handled" or "always" | Check LoginScreen |
+| No invisible overlays | None blocking buttons | Inspect styles |
+| EAS development build (not Expo Go) | Yes | You have this |
+
+---
+
+## If Nothing Works: Nuclear Option
+
+Replace the entire LoginScreen temporarily with this minimal version:
+
+```typescript
+// LoginScreen.tsx - Minimal test version
+
+import React from 'react';
+import { View, Text, TouchableOpacity, Alert, StyleSheet } from 'react-native';
+
+export default function LoginScreen() {
+  const handlePress = () => {
+    console.log('=== BUTTON PRESSED ===');
+    Alert.alert('Success', 'Button press registered!');
+  };
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>Touch Test</Text>
+      
+      <TouchableOpacity 
+        style={styles.button}
+        onPress={handlePress}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.buttonText}>TAP ME</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#1a1a2e',
+  },
+  title: {
+    fontSize: 24,
+    color: 'white',
+    marginBottom: 40,
+  },
+  button: {
+    backgroundColor: '#e94560',
+    paddingVertical: 16,
+    paddingHorizontal: 48,
+    borderRadius: 8,
+    minWidth: 200,
+  },
+  buttonText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+});
+```
+
+**If this works:** Gradually add back your original code to find the culprit.
+
+**If this doesn't work:** The problem is definitely in App.tsx or index.js setup.
+
+---
+
+## Most Likely Solution Summary
+
+Based on the patterns I've seen, my bet is on one of these three:
+
+1. **Missing `style={{ flex: 1 }}`** on GestureHandlerRootView (80% of cases)
+
+2. **ScrollView without `keyboardShouldPersistTaps="handled"`** (common on login forms)
+
+3. **Import order wrong in index.js** (gesture handler must be absolutely first)
+
+Would you like me to review your actual App.tsx and LoginScreen.tsx code to pinpoint the exact issue?

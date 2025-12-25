@@ -1,3 +1,5 @@
+import 'react-native-gesture-handler';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { DatabaseProvider } from '@nozbe/watermelondb/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React, { useEffect, useRef } from 'react';
@@ -56,12 +58,14 @@ function AppContent() {
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <DatabaseProvider database={database}>
-        <PaperProvider>
-          <AppContent />
-        </PaperProvider>
-      </DatabaseProvider>
-    </QueryClientProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <QueryClientProvider client={queryClient}>
+        <DatabaseProvider database={database}>
+          <PaperProvider>
+            <AppContent />
+          </PaperProvider>
+        </DatabaseProvider>
+      </QueryClientProvider>
+    </GestureHandlerRootView>
   );
 }
