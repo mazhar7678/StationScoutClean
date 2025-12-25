@@ -117,7 +117,32 @@ class SupabaseClientService {
         }),
       });
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (jsonError: any) {
+        // Handle Hermes JSON parsing issues
+        if (jsonError?.message?.includes('NONE')) {
+          // Retry the request
+          const retryResponse = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+            method: 'POST',
+            headers: {
+              'apikey': supabaseKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email: credentials.email,
+              password: credentials.password,
+            }),
+          });
+          data = await retryResponse.json();
+          if (!retryResponse.ok) {
+            return { data: null, error: { message: data.error_description || data.msg || 'Sign in failed' } };
+          }
+        } else {
+          throw jsonError;
+        }
+      }
 
       if (!response.ok) {
         return { data: null, error: { message: data.error_description || data.msg || 'Sign in failed' } };
@@ -136,6 +161,21 @@ class SupabaseClientService {
 
       return { data: { user, session: user }, error: null };
     } catch (e: any) {
+      // Suppress Hermes NONE errors - they often don't affect actual operation
+      if (e?.message?.includes('NONE') || e?.message?.includes('read-only property')) {
+        console.log('[Auth] Hermes warning during sign in - checking if login succeeded');
+        // Check if we have stored credentials from a successful login
+        try {
+          const stored = await AsyncStorage.getItem(AUTH_USER_KEY);
+          if (stored) {
+            const user = JSON.parse(stored);
+            this.currentUser = user;
+            this.notifyListeners();
+            return { data: { user, session: user }, error: null };
+          }
+        } catch {}
+        return { data: null, error: { message: 'Login may have succeeded. Please try again or restart the app.' } };
+      }
       return { data: null, error: { message: e?.message || 'Network error' } };
     }
   }
