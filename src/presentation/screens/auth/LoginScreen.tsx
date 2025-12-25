@@ -1,4 +1,3 @@
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useState } from 'react';
 import { Alert, StyleSheet, View, Platform, Pressable, KeyboardAvoidingView, ScrollView } from 'react-native';
 import { Button, Text, TextInput, ActivityIndicator } from 'react-native-paper';
@@ -18,8 +17,9 @@ const colors = {
   border: '#E2E8F0',
 };
 
-type RootStackParamList = {}; 
-type Props = NativeStackScreenProps<RootStackParamList>;
+type Props = {
+  navigation?: any;
+};
 
 export default function LoginScreen({ navigation }: Props) {
   const [email, setEmail] = useState('');

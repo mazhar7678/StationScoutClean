@@ -1,11 +1,10 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { AuthChangeEvent, Session } from '@supabase/supabase-js';
 import React, { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { ActivityIndicator } from 'react-native-paper';
 
-import { SupabaseClient } from '../../data/data_sources/supabase_client';
+import { SupabaseClient, AuthUser } from '../../data/data_sources/supabase_client';
 import LoginScreen from '../screens/auth/LoginScreen';
 import SignUpScreen from '../screens/auth/SignUpScreen';
 import HomeScreen from '../screens/HomeScreen';
@@ -21,22 +20,23 @@ import ErrorBoundary from '../components/ErrorBoundary';
 const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
-  const [session, setSession] = useState<Session | null>(null);
+  const [session, setSession] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    SupabaseClient.client.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
+    // Get initial session
+    SupabaseClient.getSession().then(({ session }) => {
       setSession(session);
       setLoading(false);
     });
 
-    const { data: { subscription } } = SupabaseClient.client.auth.onAuthStateChange(
-      (_event: AuthChangeEvent, session: Session | null) => {
-        setSession(session);
-      }
-    );
+    // Listen for auth changes
+    const { unsubscribe } = SupabaseClient.onAuthStateChange((user) => {
+      setSession(user);
+      setLoading(false);
+    });
 
-    return () => subscription.unsubscribe();
+    return () => unsubscribe();
   }, []);
 
   if (loading) {

@@ -1,4 +1,3 @@
-import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import {
@@ -9,57 +8,39 @@ import {
   Text,
 } from 'react-native-paper';
 
-import { SecureAuthStorage } from '@data/data_sources/secure_auth_storage';
-import { SupabaseClient } from '@data/data_sources/supabase_client';
+import { SupabaseClient, AuthUser } from '../../../data/data_sources/supabase_client';
 
 import LoginScreen from './LoginScreen';
 import SignUpScreen from './SignUpScreen';
 
 const ProfileScreen = () => {
-  const [session, setSession] = useState<Session | null>(null);
+  const [session, setSession] = useState<AuthUser | null>(null);
   const [mode, setMode] = useState<'login' | 'signup'>('login');
-  const [hasStoredCredentials, setHasStoredCredentials] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
 
-    SupabaseClient.client.auth.getSession().then(({ data }) => {
+    SupabaseClient.getSession().then(({ session }) => {
       if (isMounted) {
-        setSession(data.session);
+        setSession(session);
       }
     });
 
-    SecureAuthStorage.hasCredentials().then(result => {
+    const { unsubscribe } = SupabaseClient.onAuthStateChange((user) => {
       if (isMounted) {
-        setHasStoredCredentials(result);
+        setSession(user);
       }
     });
-
-    const {
-      data: authListener,
-    }: { data: { subscription: { unsubscribe: () => void } } } =
-      SupabaseClient.client.auth.onAuthStateChange(
-        (_event: AuthChangeEvent, nextSession) => {
-          setSession(nextSession);
-        },
-      );
 
     return () => {
       isMounted = false;
-      authListener.subscription.unsubscribe();
+      unsubscribe();
     };
   }, []);
 
   const handleLogout = async () => {
     await SupabaseClient.signOut();
-    await SecureAuthStorage.clear();
     setSession(null);
-    setHasStoredCredentials(false);
-  };
-
-  const handleClearBiometrics = async () => {
-    await SecureAuthStorage.clear();
-    setHasStoredCredentials(false);
   };
 
   if (!session) {
@@ -78,19 +59,11 @@ const ProfileScreen = () => {
           style={styles.segmented}
         />
         {mode === 'login' ? <LoginScreen /> : <SignUpScreen />}
-        {hasStoredCredentials ? (
-          <Button mode="text" onPress={handleClearBiometrics}>
-            Remove stored biometric credentials
-          </Button>
-        ) : null}
       </ScrollView>
     );
   }
 
-  const email = session.user.email ?? 'Unknown user';
-  const lastSignIn = session.user.last_sign_in_at
-    ? new Date(session.user.last_sign_in_at).toLocaleString()
-    : '—';
+  const email = session.email ?? 'Unknown user';
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -101,19 +74,11 @@ const ProfileScreen = () => {
           style={styles.avatar}
         />
         <Text variant="titleLarge">{email}</Text>
-        <Text variant="bodyMedium" style={styles.metadata}>
-          Last sign-in: {lastSignIn}
-        </Text>
       </View>
       <Divider style={styles.divider} />
       <Button mode="contained" onPress={handleLogout} style={styles.button}>
         Sign out
       </Button>
-      {hasStoredCredentials ? (
-        <Button mode="outlined" onPress={handleClearBiometrics}>
-          Remove stored biometric credentials
-        </Button>
-      ) : null}
     </ScrollView>
   );
 };

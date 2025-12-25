@@ -17,13 +17,10 @@ const SignUpScreen = () => {
       const { error } = await SupabaseClient.signUp({
         email,
         password,
-        options: {
-          data: { display_name: displayName },
-        },
       });
 
       if (error) {
-        throw error;
+        throw new Error(error.message);
       }
     },
     onError: err => {
