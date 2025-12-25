@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Alert, StyleSheet, View, Platform, KeyboardAvoidingView, ScrollView } from 'react-native';
-import { Button, Text, TextInput } from 'react-native-paper';
+import { Alert, StyleSheet, View, Platform, KeyboardAvoidingView, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Text, TextInput } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { SupabaseClient } from '../../../data/data_sources/supabase_client';
@@ -167,18 +167,18 @@ export default function LoginScreen({ navigation }: Props) {
             />
           </View>
 
-          <Button
-            mode="contained"
+          <TouchableOpacity
             onPress={handleLogin}
-            loading={loading}
             disabled={loading}
-            style={styles.primaryButton}
-            labelStyle={styles.primaryButtonText}
-            contentStyle={{ paddingVertical: 8 }}
-            buttonColor={colors.primary}
+            style={[styles.primaryButton, loading && styles.buttonDisabled]}
+            activeOpacity={0.7}
           >
-            Sign In
-          </Button>
+            {loading ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={styles.primaryButtonText}>Sign In</Text>
+            )}
+          </TouchableOpacity>
 
           <View style={styles.divider}>
             <View style={styles.dividerLine} />
@@ -186,16 +186,14 @@ export default function LoginScreen({ navigation }: Props) {
             <View style={styles.dividerLine} />
           </View>
 
-          <Button
-            mode="outlined"
+          <TouchableOpacity
             onPress={handleSignUp}
             disabled={loading}
-            style={styles.secondaryButton}
-            labelStyle={styles.secondaryButtonText}
-            contentStyle={{ paddingVertical: 8 }}
+            style={[styles.secondaryButton, loading && styles.buttonDisabled]}
+            activeOpacity={0.7}
           >
-            Create New Account
-          </Button>
+            <Text style={styles.secondaryButtonText}>Create New Account</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.footer}>
@@ -281,10 +279,18 @@ const styles = StyleSheet.create({
   primaryButton: {
     borderRadius: 12,
     marginTop: 8,
+    backgroundColor: '#1E3A5F',
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   primaryButtonText: {
     fontSize: 16,
     fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   divider: {
     flexDirection: 'row',
@@ -303,10 +309,15 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     borderRadius: 12,
-    borderColor: colors.border,
+    borderColor: '#E2E8F0',
+    borderWidth: 1,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
   },
   secondaryButtonText: {
-    color: colors.primary,
+    color: '#1E3A5F',
     fontSize: 16,
     fontWeight: '600',
   },
