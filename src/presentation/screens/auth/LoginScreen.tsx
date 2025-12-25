@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Alert, StyleSheet, View, Platform, Pressable, KeyboardAvoidingView, ScrollView } from 'react-native';
-import { Button, Text, TextInput, ActivityIndicator } from 'react-native-paper';
+import { Alert, StyleSheet, View, Platform, KeyboardAvoidingView, ScrollView } from 'react-native';
+import { Button, Text, TextInput } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { SupabaseClient } from '../../../data/data_sources/supabase_client';
@@ -167,20 +167,18 @@ export default function LoginScreen({ navigation }: Props) {
             />
           </View>
 
-          <Pressable 
-            style={({ pressed }) => [styles.primaryButton, pressed && styles.buttonPressed]}
+          <Button
+            mode="contained"
             onPress={handleLogin}
+            loading={loading}
             disabled={loading}
+            style={styles.primaryButton}
+            labelStyle={styles.primaryButtonText}
+            contentStyle={{ paddingVertical: 8 }}
+            buttonColor={colors.primary}
           >
-            {loading ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <>
-                <Text style={styles.primaryButtonText}>Sign In</Text>
-                <MaterialCommunityIcons name="arrow-right" size={20} color="#fff" />
-              </>
-            )}
-          </Pressable>
+            Sign In
+          </Button>
 
           <View style={styles.divider}>
             <View style={styles.dividerLine} />
@@ -188,13 +186,16 @@ export default function LoginScreen({ navigation }: Props) {
             <View style={styles.dividerLine} />
           </View>
 
-          <Pressable 
-            style={({ pressed }) => [styles.secondaryButton, pressed && styles.buttonPressed]}
+          <Button
+            mode="outlined"
             onPress={handleSignUp}
             disabled={loading}
+            style={styles.secondaryButton}
+            labelStyle={styles.secondaryButtonText}
+            contentStyle={{ paddingVertical: 8 }}
           >
-            <Text style={styles.secondaryButtonText}>Create New Account</Text>
-          </Pressable>
+            Create New Account
+          </Button>
         </View>
 
         <View style={styles.footer}>
@@ -278,21 +279,10 @@ const styles = StyleSheet.create({
     color: '#1E293B',
   },
   primaryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-    paddingVertical: 16,
     borderRadius: 12,
     marginTop: 8,
-    gap: 8,
-  },
-  buttonPressed: {
-    opacity: 0.9,
-    transform: [{ scale: 0.99 }],
   },
   primaryButtonText: {
-    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -312,13 +302,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   secondaryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surface,
-    paddingVertical: 16,
     borderRadius: 12,
-    borderWidth: 1,
     borderColor: colors.border,
   },
   secondaryButtonText: {
