@@ -33,29 +33,57 @@ export default function LoginScreen({ navigation }: Props) {
       return;
     }
 
+    console.log('[Login] Starting login...');
     setLoading(true);
-    const { error } = await SupabaseClient.signIn({
-      email: email.trim(),
-      password,
-    });
-    setLoading(false);
-
-    if (error) {
-      // Don't show alert for Hermes errors - they're internal engine issues
-      if (error.message.includes('may have succeeded') || 
-          error.message.includes('NONE') || 
-          error.message.includes('read-only property')) {
-        console.log('[Login] Ignoring Hermes warning, retrying...');
-        // Wait a moment and check if session was actually set
-        setTimeout(async () => {
+    
+    try {
+      const { data, error } = await SupabaseClient.signIn({
+        email: email.trim(),
+        password,
+      });
+      
+      console.log('[Login] Result:', { hasData: !!data, hasError: !!error });
+      
+      if (error) {
+        // Check if this is a Hermes internal error (not an actual auth failure)
+        const isHermesError = error.message.includes('NONE') || 
+                              error.message.includes('read-only property') ||
+                              error.message.includes('may have succeeded');
+        
+        if (isHermesError) {
+          console.log('[Login] Hermes error detected, checking session...');
+          // Wait and check if login actually succeeded despite the error
+          await new Promise(resolve => setTimeout(resolve, 500));
           const { session } = await SupabaseClient.getSession();
           if (session) {
-            console.log('[Login] Session found after retry');
+            console.log('[Login] Session found - login succeeded!');
+            setLoading(false);
+            return; // Navigation will happen automatically via auth listener
           }
-        }, 1000);
+        }
+        
+        // Real authentication error
+        console.log('[Login] Auth failed:', error.message);
+        setLoading(false);
+        Alert.alert('Login Failed', error.message);
         return;
       }
-      Alert.alert('Login Failed', error.message);
+      
+      // Success
+      console.log('[Login] Login successful!');
+      setLoading(false);
+    } catch (e: any) {
+      console.log('[Login] Exception:', e?.message);
+      setLoading(false);
+      
+      // Check if login succeeded despite the exception
+      const { session } = await SupabaseClient.getSession();
+      if (session) {
+        console.log('[Login] Session found despite error');
+        return;
+      }
+      
+      Alert.alert('Login Failed', e?.message || 'An error occurred');
     }
   };
 
