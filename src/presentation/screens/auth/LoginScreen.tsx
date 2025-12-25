@@ -48,18 +48,23 @@ export default function LoginScreen({ navigation }: Props) {
         // Check if this is a Hermes internal error (not an actual auth failure)
         const isHermesError = error.message.includes('NONE') || 
                               error.message.includes('read-only property') ||
-                              error.message.includes('may have succeeded');
+                              error.message.includes('may have succeeded') ||
+                              error.message.includes('Cannot assign');
         
         if (isHermesError) {
           console.log('[Login] Hermes error detected, checking session...');
-          // Wait and check if login actually succeeded despite the error
-          await new Promise(resolve => setTimeout(resolve, 500));
+          // Wait longer and check if login actually succeeded despite the error
+          await new Promise(resolve => setTimeout(resolve, 1000));
           const { session } = await SupabaseClient.getSession();
           if (session) {
             console.log('[Login] Session found - login succeeded!');
             setLoading(false);
             return; // Navigation will happen automatically via auth listener
           }
+          // Don't show alert for Hermes errors - just silently fail
+          console.log('[Login] Hermes error, no session - silently fail');
+          setLoading(false);
+          return;
         }
         
         // Real authentication error
@@ -78,12 +83,11 @@ export default function LoginScreen({ navigation }: Props) {
       // Check if this is a Hermes internal error
       const errorMsg = e?.message || '';
       const isHermesError = errorMsg.includes('NONE') || 
-                            errorMsg.includes('read-only property');
+                            errorMsg.includes('read-only property') ||
+                            errorMsg.includes('Cannot assign');
       
-      if (isHermesError) {
-        console.log('[Login] Hermes exception detected, checking session...');
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
+      // Wait and check session
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Check if login succeeded despite the exception
       const { session } = await SupabaseClient.getSession();
@@ -95,9 +99,9 @@ export default function LoginScreen({ navigation }: Props) {
       
       setLoading(false);
       
-      // Don't show alert for Hermes errors - just silently retry
+      // Don't show alert for Hermes errors - just silently fail
       if (isHermesError) {
-        console.log('[Login] Hermes error, no session found - login may need retry');
+        console.log('[Login] Hermes error, no session found - silently fail');
         return;
       }
       
