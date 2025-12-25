@@ -10,6 +10,28 @@ import {
 } from '@supabase/supabase-js';
 import { AppState, Platform } from 'react-native';
 
+// Fix for Hermes "Cannot assign to read-only property 'NONE'" error
+if (Platform.OS !== 'web' && typeof global !== 'undefined') {
+  // Patch AbortSignal if it has frozen properties
+  if (global.AbortSignal) {
+    const origSignal = global.AbortSignal;
+    try {
+      // Test if NONE is writable
+      const testSignal = new origSignal();
+      if (testSignal && Object.isFrozen(testSignal)) {
+        // Create a wrapper that doesn't freeze
+        const PatchedAbortSignal = function() {
+          return Object.create(origSignal.prototype);
+        };
+        PatchedAbortSignal.prototype = origSignal.prototype;
+        (global as any).AbortSignal = PatchedAbortSignal;
+      }
+    } catch (e) {
+      // Ignore patching errors
+    }
+  }
+}
+
 class SupabaseClientService {
   private readonly supabase: SupabaseClientType;
 
