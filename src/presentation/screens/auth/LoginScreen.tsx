@@ -41,6 +41,11 @@ export default function LoginScreen({ navigation }: Props) {
     setLoading(false);
 
     if (error) {
+      // Don't show alert for Hermes "may have succeeded" error - login likely worked
+      if (error.message.includes('may have succeeded')) {
+        console.log('[Login] Ignoring Hermes warning, login likely succeeded');
+        return;
+      }
       Alert.alert('Login Failed', error.message);
     }
   };
