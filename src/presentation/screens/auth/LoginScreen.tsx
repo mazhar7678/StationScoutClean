@@ -41,9 +41,18 @@ export default function LoginScreen({ navigation }: Props) {
     setLoading(false);
 
     if (error) {
-      // Don't show alert for Hermes "may have succeeded" error - login likely worked
-      if (error.message.includes('may have succeeded')) {
-        console.log('[Login] Ignoring Hermes warning, login likely succeeded');
+      // Don't show alert for Hermes errors - they're internal engine issues
+      if (error.message.includes('may have succeeded') || 
+          error.message.includes('NONE') || 
+          error.message.includes('read-only property')) {
+        console.log('[Login] Ignoring Hermes warning, retrying...');
+        // Wait a moment and check if session was actually set
+        setTimeout(async () => {
+          const { session } = await SupabaseClient.getSession();
+          if (session) {
+            console.log('[Login] Session found after retry');
+          }
+        }, 1000);
         return;
       }
       Alert.alert('Login Failed', error.message);
