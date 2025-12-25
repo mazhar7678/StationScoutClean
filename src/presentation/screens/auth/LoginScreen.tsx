@@ -54,16 +54,21 @@ export default function LoginScreen({ navigation }: Props) {
         if (isHermesError) {
           console.log('[Login] Hermes error detected, checking session...');
           // Wait longer and check if login actually succeeded despite the error
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise(resolve => setTimeout(resolve, 1500));
           const { session } = await SupabaseClient.getSession();
           if (session) {
             console.log('[Login] Session found - login succeeded!');
             setLoading(false);
             return; // Navigation will happen automatically via auth listener
           }
-          // Don't show alert for Hermes errors - just silently fail
-          console.log('[Login] Hermes error, no session - silently fail');
+          // Show user-friendly message for Hermes compatibility issue
+          console.log('[Login] Hermes error, no session found');
           setLoading(false);
+          Alert.alert(
+            'Connection Issue',
+            'Unable to verify login. Please try again or use the preview build for full functionality.',
+            [{ text: 'OK' }]
+          );
           return;
         }
         
@@ -99,9 +104,14 @@ export default function LoginScreen({ navigation }: Props) {
       
       setLoading(false);
       
-      // Don't show alert for Hermes errors - just silently fail
+      // Show user-friendly message for Hermes errors
       if (isHermesError) {
-        console.log('[Login] Hermes error, no session found - silently fail');
+        console.log('[Login] Hermes exception, no session found');
+        Alert.alert(
+          'Connection Issue',
+          'Unable to verify login. Please try again or use the preview build for full functionality.',
+          [{ text: 'OK' }]
+        );
         return;
       }
       
