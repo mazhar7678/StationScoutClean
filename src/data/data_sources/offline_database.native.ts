@@ -15,6 +15,23 @@ import {
   PendingChange,
 } from '../db/models';
 
+const originalFreeze = Object.freeze;
+Object.freeze = function(obj: any) {
+  if (obj && typeof obj === 'object') {
+    try {
+      const keys = Object.keys(obj);
+      if (
+        keys.includes('NONE') && 
+        keys.includes('BUBBLE') && 
+        keys.includes('CAPTURE')
+      ) {
+        return obj;
+      }
+    } catch (e) {}
+  }
+  return originalFreeze.call(Object, obj);
+};
+
 setGenerator(() => Crypto.randomUUID());
 
 const isExpoGo = (): boolean => {
@@ -36,7 +53,8 @@ if (Platform.OS === 'android' && isHermes()) {
     if (
       message.includes("Cannot assign to read-only property 'NONE'") ||
       message.includes("Cannot assign to read-only property 'BUBBLE'") ||
-      message.includes("Cannot assign to read-only property 'CAPTURE'")
+      message.includes("Cannot assign to read-only property 'CAPTURE'") ||
+      message.includes("read-only property")
     ) {
       return;
     }
@@ -53,7 +71,7 @@ function createAdapter() {
       schema: stationScoutSchema,
       useWebWorker: false,
       useIncrementalIndexedDB: false,
-      dbName: 'stationscout_expogo',
+      dbName: 'stationscout_expogo_v3',
       onQuotaExceededError: (error: any) => {
         console.warn('Storage quota exceeded:', error);
       },
@@ -81,7 +99,7 @@ function createAdapter() {
       schema: stationScoutSchema,
       useWebWorker: false,
       useIncrementalIndexedDB: false,
-      dbName: 'stationscout_fallback',
+      dbName: 'stationscout_fallback_v3',
     });
   }
 }

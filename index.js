@@ -1,69 +1,56 @@
-// index.js
-
 // ============================================
-// HERMES COMPATIBILITY PATCH - Must be first!
+// HERMES COMPATIBILITY PATCH - Must run first!
+// This patches Object.freeze before any React Native modules load
 // ============================================
-import { Platform } from 'react-native';
 
-if (Platform.OS === 'android') {
-  const originalFreeze = Object.freeze;
-  Object.freeze = function(obj) {
-    if (obj && typeof obj === 'object') {
+const originalFreeze = Object.freeze;
+Object.freeze = function(obj) {
+  if (obj && typeof obj === 'object') {
+    try {
       const keys = Object.keys(obj);
       if (
         keys.includes('NONE') && 
         keys.includes('BUBBLE') && 
-        keys.includes('CAPTURE') &&
-        keys.length === 3
+        keys.includes('CAPTURE')
       ) {
         return obj;
       }
+    } catch (e) {
+      // Ignore errors during key enumeration
     }
-    return originalFreeze.call(Object, obj);
-  };
-}
+  }
+  return originalFreeze.call(Object, obj);
+};
 
-// Global error handler to suppress Hermes "NONE" property errors
+// ============================================
+// Now load modules using require (after patch)
+// ============================================
+const { registerRootComponent } = require('expo');
+const { Platform } = require('react-native');
+const App = require('./App').default;
+
+// Additional error suppression
 if (Platform.OS !== 'web') {
-  const originalHandler = ErrorUtils.getGlobalHandler();
-  ErrorUtils.setGlobalHandler((error, isFatal) => {
-    const message = error?.message || '';
-    if (
-      message.includes('NONE') || 
-      message.includes('BUBBLE') ||
-      message.includes('CAPTURE') ||
-      message.includes('read-only property') ||
-      message.includes('initializeJSI')
-    ) {
-      console.warn('[App] Suppressed Hermes/JSI compatibility warning');
-      return;
-    }
-    if (originalHandler) {
-      originalHandler(error, isFatal);
-    }
-  });
-
-  if (global.HermesInternal) {
-    global.HermesInternal.enablePromiseRejectionTracker?.({
-      allRejections: true,
-      onUnhandled: (id, rejection) => {
-        const message = rejection?.message || '';
-        if (
-          message.includes('NONE') || 
-          message.includes('read-only property') ||
-          message.includes('initializeJSI')
-        ) {
-          return;
-        }
-      },
+  try {
+    const originalHandler = ErrorUtils.getGlobalHandler();
+    ErrorUtils.setGlobalHandler((error, isFatal) => {
+      const message = error?.message || '';
+      if (
+        message.includes('NONE') || 
+        message.includes('BUBBLE') ||
+        message.includes('CAPTURE') ||
+        message.includes('read-only property')
+      ) {
+        console.warn('[App] Suppressed Hermes compatibility warning');
+        return;
+      }
+      if (originalHandler) {
+        originalHandler(error, isFatal);
+      }
     });
+  } catch (e) {
+    // ErrorUtils might not be available
   }
 }
-
-// ============================================
-// Normal app initialization
-// ============================================
-import { registerRootComponent } from 'expo';
-import App from './App';
 
 registerRootComponent(App);
