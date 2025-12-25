@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import { Database } from '@nozbe/watermelondb';
 import { setGenerator } from '@nozbe/watermelondb/utils/common/randomId';
 import * as Crypto from 'expo-crypto';
+import Constants from 'expo-constants';
 
 import { stationScoutSchema } from '../db/schema';
 import { migrations } from '../db/migrations';
@@ -16,8 +17,57 @@ import {
 
 setGenerator(() => Crypto.randomUUID());
 
+const isExpoGo = (): boolean => {
+  try {
+    return Constants.appOwnership === 'expo';
+  } catch {
+    return false;
+  }
+};
+
+const isHermes = (): boolean => {
+  return typeof (global as any).HermesInternal !== 'undefined';
+};
+
+class MockDatabase {
+  get<T>(tableName: string): any {
+    return {
+      query: () => ({
+        fetch: async () => [],
+        observe: () => ({ subscribe: (cb: any) => { cb([]); return { unsubscribe: () => {} }; } }),
+      }),
+      find: async () => null,
+      create: async (callback: any) => {
+        const record: any = { id: Crypto.randomUUID() };
+        if (callback) callback(record);
+        return record;
+      },
+    };
+  }
+  
+  write<T>(callback: () => Promise<T>): Promise<T> {
+    return callback();
+  }
+  
+  batch(...records: any[]): Promise<void> {
+    return Promise.resolve();
+  }
+
+  adapter = { schema: stationScoutSchema };
+}
+
 function createAdapter() {
-  console.log(`[Database] Platform: ${Platform.OS}, attempting SQLite first...`);
+  console.log(`[Database] Platform: ${Platform.OS}, Hermes: ${isHermes()}, ExpoGo: ${isExpoGo()}`);
+  
+  if (Platform.OS === 'android' && isHermes() && isExpoGo()) {
+    console.warn(
+      '[Database] Running in Expo Go on Android/Hermes - using mock database.\n' +
+      'Data will NOT persist. Use EAS Build for full functionality.'
+    );
+    return null;
+  }
+  
+  console.log('[Database] Attempting SQLite adapter...');
   
   try {
     const SQLiteAdapter = require('@nozbe/watermelondb/adapters/sqlite').default;
@@ -37,33 +87,13 @@ function createAdapter() {
     return adapter;
   } catch (sqliteError) {
     console.warn('[Database] SQLite not available:', sqliteError);
+    
+    if (Platform.OS === 'android' && isHermes()) {
+      console.warn('[Database] Using mock database due to Hermes compatibility');
+      return null;
+    }
+    
     console.log('[Database] Falling back to LokiJS adapter...');
-    
-    const originalFreeze = Object.freeze;
-    Object.freeze = function(obj: any) {
-      if (obj && typeof obj === 'object') {
-        try {
-          const keys = Object.keys(obj);
-          if (
-            keys.includes('NONE') && 
-            keys.includes('BUBBLE') && 
-            keys.includes('CAPTURE')
-          ) {
-            return obj;
-          }
-        } catch (e) {}
-      }
-      return originalFreeze.call(Object, obj);
-    };
-    
-    const originalError = console.error;
-    console.error = (...args: any[]) => {
-      const message = args[0]?.toString?.() || '';
-      if (message.includes("read-only property")) {
-        return;
-      }
-      originalError.apply(console, args);
-    };
     
     const LokiJSAdapter = require('@nozbe/watermelondb/adapters/lokijs').default;
     
@@ -81,16 +111,24 @@ function createAdapter() {
 
 const adapter = createAdapter();
 
-export const database = new Database({
-  adapter,
-  modelClasses: [
-    Event,
-    TrainOperator,
-    RailwayLine,
-    Station,
-    Bookmark,
-    PendingChange,
-  ],
-});
+let database: any;
 
+if (adapter === null) {
+  console.log('[Database] Using MockDatabase');
+  database = new MockDatabase();
+} else {
+  database = new Database({
+    adapter,
+    modelClasses: [
+      Event,
+      TrainOperator,
+      RailwayLine,
+      Station,
+      Bookmark,
+      PendingChange,
+    ],
+  });
+}
+
+export { database };
 export const offlineDatabase = database;
