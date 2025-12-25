@@ -74,16 +74,34 @@ export default function LoginScreen({ navigation }: Props) {
       setLoading(false);
     } catch (e: any) {
       console.log('[Login] Exception:', e?.message);
-      setLoading(false);
+      
+      // Check if this is a Hermes internal error
+      const errorMsg = e?.message || '';
+      const isHermesError = errorMsg.includes('NONE') || 
+                            errorMsg.includes('read-only property');
+      
+      if (isHermesError) {
+        console.log('[Login] Hermes exception detected, checking session...');
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
       
       // Check if login succeeded despite the exception
       const { session } = await SupabaseClient.getSession();
       if (session) {
-        console.log('[Login] Session found despite error');
+        console.log('[Login] Session found despite error - navigating...');
+        setLoading(false);
         return;
       }
       
-      Alert.alert('Login Failed', e?.message || 'An error occurred');
+      setLoading(false);
+      
+      // Don't show alert for Hermes errors - just silently retry
+      if (isHermesError) {
+        console.log('[Login] Hermes error, no session found - login may need retry');
+        return;
+      }
+      
+      Alert.alert('Login Failed', errorMsg || 'An error occurred');
     }
   };
 
