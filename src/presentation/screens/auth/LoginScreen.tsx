@@ -42,80 +42,38 @@ export default function LoginScreen({ navigation }: Props) {
         password,
       });
       
-      console.log('[Login] Result:', { hasData: !!data, hasError: !!error });
+      console.log('[Login] Result:', { hasData: !!data, hasError: !!error, errorMsg: error?.message });
       
       if (error) {
-        // Check if this is a Hermes internal error (not an actual auth failure)
-        const isHermesError = error.message.includes('NONE') || 
-                              error.message.includes('read-only property') ||
-                              error.message.includes('may have succeeded') ||
-                              error.message.includes('Cannot assign');
-        
-        if (isHermesError) {
-          console.log('[Login] Hermes error detected, checking session...');
-          // Wait longer and check if login actually succeeded despite the error
-          await new Promise(resolve => setTimeout(resolve, 1500));
-          const { session } = await SupabaseClient.getSession();
-          if (session) {
-            console.log('[Login] Session found - login succeeded!');
-            setLoading(false);
-            return; // Navigation will happen automatically via auth listener
-          }
-          // Show user-friendly message for Hermes compatibility issue
-          console.log('[Login] Hermes error, no session found');
-          setLoading(false);
-          Alert.alert(
-            'Connection Issue',
-            'Unable to verify login. Please try again or use the preview build for full functionality.',
-            [{ text: 'OK' }]
-          );
-          return;
-        }
-        
-        // Real authentication error
-        console.log('[Login] Auth failed:', error.message);
         setLoading(false);
-        Alert.alert('Login Failed', error.message);
+        // Show the actual error message from Supabase
+        Alert.alert('Login Failed', error.message || 'Authentication failed');
         return;
       }
       
-      // Success
-      console.log('[Login] Login successful!');
+      if (data?.session) {
+        // Success - navigation will happen automatically
+        console.log('[Login] Login successful!');
+        setLoading(false);
+        return;
+      }
+      
+      // No error but no session - check after a moment
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const { session } = await SupabaseClient.getSession();
+      
+      if (session) {
+        console.log('[Login] Session found!');
+        setLoading(false);
+        return;
+      }
+      
       setLoading(false);
+      Alert.alert('Login Failed', 'Could not establish session. Please try again.');
     } catch (e: any) {
       console.log('[Login] Exception:', e?.message);
-      
-      // Check if this is a Hermes internal error
-      const errorMsg = e?.message || '';
-      const isHermesError = errorMsg.includes('NONE') || 
-                            errorMsg.includes('read-only property') ||
-                            errorMsg.includes('Cannot assign');
-      
-      // Wait and check session
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Check if login succeeded despite the exception
-      const { session } = await SupabaseClient.getSession();
-      if (session) {
-        console.log('[Login] Session found despite error - navigating...');
-        setLoading(false);
-        return;
-      }
-      
       setLoading(false);
-      
-      // Show user-friendly message for Hermes errors
-      if (isHermesError) {
-        console.log('[Login] Hermes exception, no session found');
-        Alert.alert(
-          'Connection Issue',
-          'Unable to verify login. Please try again or use the preview build for full functionality.',
-          [{ text: 'OK' }]
-        );
-        return;
-      }
-      
-      Alert.alert('Login Failed', errorMsg || 'An error occurred');
+      Alert.alert('Login Error', e?.message || 'An unexpected error occurred');
     }
   };
 
