@@ -21,7 +21,7 @@ const adapter = new LokiJSAdapter({
   migrations,
   useWebWorker: false,
   useIncrementalIndexedDB: true,
-  dbName: 'stationscout_web',
+  dbName: 'stationscout_web_v3',
   onQuotaExceededError: (error: any) => {
     console.error('IndexedDB quota exceeded:', error);
   },

@@ -1,0 +1,233 @@
+This is the expected behavior - Expo Go cannot run SQLite native modules. The error Cannot read property 'initializeJSI' of null confirms that the SQLite JSI bridge isn't available in Expo Go.
+
+You have two options:
+
+Option 1: EAS Development Build (Recommended - Permanent Fix)
+This creates a custom app with all native modules included. However, EAS Build requires an Expo account and may require a paid plan for faster builds.
+
+Step 1: Set Up EAS
+bash
+# Install EAS CLI
+npm install -g eas-cli
+
+# Login (create account if needed at expo.dev)
+eas login
+
+# Initialize EAS in your project
+eas build:configure
+
+Step 2: Create eas.json
+json
+{
+  "cli": {
+    "version": ">= 5.0.0"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleDebug"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "production": {
+      "android": {
+        "buildType": "app-bundle"
+      }
+    }
+  }
+}
+
+Step 3: Build
+bash
+eas build --profile development --platform android
+
+This takes 10-20 minutes. Download the APK and install on your device.
+
+Option 2: Hybrid Adapter (Quick Fix for Expo Go Testing)
+This approach uses LokiJS for Expo Go testing but with error suppression for the Hermes issue, while keeping SQLite ready for production builds.
+
+typescript
+// src/data/data_sources/offline_database.ts
+
+import { Platform } from 'react-native';
+import { Database } from '@nozbe/watermelondb';
+import LokiJSAdapter from '@nozbe/watermelondb/adapters/lokijs';
+
+import { schema } from '../db/schema';
+// import { modelClasses } from '../models'; // Your model classes
+
+// Detect if we're in Expo Go (no native modules available)
+const isExpoGo = () => {
+  // In Expo Go, Constants.appOwnership === 'expo'
+  // In standalone/dev builds, it's 'standalone' or undefined
+  try {
+    const Constants = require('expo-constants').default;
+    return Constants.appOwnership === 'expo';
+  } catch {
+    return false;
+  }
+};
+
+// Detect Hermes engine
+const isHermes = (): boolean => {
+  return typeof (global as any).HermesInternal !== 'undefined';
+};
+
+// Suppress the specific Hermes "NONE" error globally
+if (Platform.OS === 'android' && isHermes()) {
+  const originalError = console.error;
+  console.error = (...args: any[]) => {
+    const message = args[0]?.toString?.() || '';
+    // Suppress the specific frozen property error
+    if (
+      message.includes("Cannot assign to read-only property 'NONE'") ||
+      message.includes("Cannot assign to read-only property 'BUBBLE'") ||
+      message.includes("Cannot assign to read-only property 'CAPTURE'")
+    ) {
+      // Silently ignore this specific error
+      return;
+    }
+    originalError.apply(console, args);
+  };
+
+  // Also patch the global error handler
+  const originalHandler = (global as any).ErrorUtils?.getGlobalHandler?.();
+  if (originalHandler) {
+    (global as any).ErrorUtils.setGlobalHandler((error: Error, isFatal: boolean) => {
+      const message = error?.message || '';
+      if (
+        message.includes("Cannot assign to read-only property 'NONE'") ||
+        message.includes('read-only property')
+      ) {
+        // Suppress this error - don't show it to the user
+        console.warn('[Suppressed] Known Hermes/LokiJS compatibility issue');
+        return;
+      }
+      // Pass all other errors to the original handler
+      originalHandler(error, isFatal);
+    });
+  }
+}
+
+// Create the database adapter
+function createAdapter() {
+  // For Expo Go on any platform, or Android in general, use LokiJS
+  // SQLite would fail in Expo Go
+  if (isExpoGo() || Platform.OS === 'web') {
+    console.log('[Database] Using LokiJS adapter');
+    
+    return new LokiJSAdapter({
+      schema,
+      useWebWorker: false,
+      useIncrementalIndexedDB: Platform.OS === 'web',
+      dbName: 'stationscout_db',
+      // These options can help reduce the event emitter issues
+      onQuotaExceededError: (error: any) => {
+        console.warn('Storage quota exceeded:', error);
+      },
+    });
+  }
+
+  // For production builds on native platforms, try SQLite
+  // This will only work in EAS builds, not Expo Go
+  try {
+    const SQLiteAdapter = require('@nozbe/watermelondb/adapters/sqlite').default;
+    console.log('[Database] Using SQLite adapter');
+    
+    return new SQLiteAdapter({
+      schema,
+      dbName: 'stationscout',
+      jsi: true,
+      onSetUpError: (error: any) => {
+        console.error('SQLite setup error:', error);
+      },
+    });
+  } catch (error) {
+    // SQLite not available (e.g., in Expo Go), fall back to LokiJS
+    console.warn('[Database] SQLite not available, falling back to LokiJS');
+    
+    return new LokiJSAdapter({
+      schema,
+      useWebWorker: false,
+      useIncrementalIndexedDB: false,
+      dbName: 'stationscout_fallback',
+    });
+  }
+}
+
+const adapter = createAdapter();
+
+export const database = new Database({
+  adapter,
+  modelClasses: [
+    // Add your model classes here
+    // Station,
+    // User,
+    // etc.
+  ],
+});
+
+export default database;
+
+Additional: Patch the Event Emitter at App Entry
+Add this to your index.js before any other imports:
+
+javascript
+// index.js
+
+// ============================================
+// HERMES COMPATIBILITY PATCH - Must be first!
+// ============================================
+import { Platform } from 'react-native';
+
+if (Platform.OS === 'android') {
+  // Patch Object.freeze to make it less strict for specific objects
+  const originalFreeze = Object.freeze;
+  Object.freeze = function(obj) {
+    // Allow the problematic event constants to remain mutable
+    if (obj && typeof obj === 'object') {
+      const keys = Object.keys(obj);
+      if (
+        keys.includes('NONE') && 
+        keys.includes('BUBBLE') && 
+        keys.includes('CAPTURE') &&
+        keys.length === 3
+      ) {
+        // Don't freeze event phase constants
+        console.log('[Patch] Skipping freeze for event constants');
+        return obj;
+      }
+    }
+    return originalFreeze.call(Object, obj);
+  };
+}
+
+// ============================================
+// Normal app initialization
+// ============================================
+import { registerRootComponent } from 'expo';
+import App from './App';
+
+registerRootComponent(App);
+
+Summary: What to Do Now
+Situation	Solution
+Testing in Expo Go	Use Option 2 (Hybrid Adapter with error suppression)
+Production deployment	Use Option 1 (EAS Build with SQLite)
+Quick development	Apply both - the code auto-detects the environment
+Immediate Steps:
+Replace your offline_database.ts with the hybrid version above
+Update your index.js with the Object.freeze patch
+Clear cache and restart:
+bash
+npx expo start --clear
+
+This should allow you to continue testing in Expo Go while the LokiJS errors are suppressed. The app will automatically use SQLite when you create an EAS build.
