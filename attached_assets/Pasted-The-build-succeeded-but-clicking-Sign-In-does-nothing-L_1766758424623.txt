@@ -1,0 +1,94 @@
+The build succeeded, but clicking "Sign In" does nothing. Let's debug this. Here are the most common causes:
+
+## 1. Check Your Sign In Handler
+
+Make sure your button has an `onPress` handler that's actually being called:
+
+```jsx
+const handleSignIn = async () => {
+  console.log('Sign in pressed'); // Add this to verify it's being called
+  
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    
+    if (error) {
+      console.error('Sign in error:', error.message);
+      Alert.alert('Error', error.message);
+      return;
+    }
+    
+    console.log('Sign in successful:', data);
+  } catch (err) {
+    console.error('Unexpected error:', err);
+  }
+};
+
+// Make sure the button calls it
+<TouchableOpacity onPress={handleSignIn}>
+  <Text>Sign In</Text>
+</TouchableOpacity>
+```
+
+## 2. Check for Silent Errors
+
+Add error boundaries and logging:
+
+```jsx
+const handleSignIn = async () => {
+  if (!email || !password) {
+    Alert.alert('Error', 'Please enter email and password');
+    return;
+  }
+  
+  setLoading(true);
+  
+  try {
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+    
+    if (error) throw error;
+    
+    // Navigation should happen automatically if you have an auth listener
+  } catch (error) {
+    Alert.alert('Sign In Failed', error.message);
+  } finally {
+    setLoading(false);
+  }
+};
+```
+
+## 3. Verify Supabase is Initialized
+
+Check your Supabase client setup:
+
+```jsx
+// lib/supabase.js
+import { createClient } from '@supabase/supabase-js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+
+console.log('Supabase URL:', supabaseUrl); // Verify these aren't undefined
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    storage: AsyncStorage,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false,
+  },
+});
+```
+
+## 4. Share Your Sign In Code
+
+Can you share your actual sign-in screen code? That will help identify the exact issue. Specifically:
+- The button component
+- The `onPress` handler
+- Your Supabase initialization
