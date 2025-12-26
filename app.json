@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "stationscout",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
     },
@@ -48,13 +48,9 @@
         "expo-build-properties",
         {
           "android": {
-            "newArchEnabled": false,
             "packagingOptions": {
               "pickFirst": ["**/libc++_shared.so"]
             }
-          },
-          "ios": {
-            "newArchEnabled": false
           }
         }
       ]
