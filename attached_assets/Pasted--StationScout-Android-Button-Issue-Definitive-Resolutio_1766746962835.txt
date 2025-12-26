@@ -1,0 +1,1034 @@
+# StationScout Android Button Issue: Definitive Resolution Guide
+
+Based on my comprehensive analysis of your codebase, build configurations, and the technical brief, I can now provide a clear path forward. You've correctly diagnosed the issue—this is a known conflict between React Native's New Architecture (Fabric), react-native-gesture-handler 2.28.x, and Hermes on Android.
+
+---
+
+## Executive Summary
+
+**The Problem:** Touch events are being captured by the native Fabric renderer but never propagated to JavaScript handlers.
+
+**The Solution:** You have three viable paths, ranked by likelihood of success:
+
+1. **Path A (Recommended):** Downgrade `react-native-gesture-handler` to 2.16.2
+2. **Path B:** Properly disable New Architecture with correct Gradle configuration
+3. **Path C:** Upgrade to Expo SDK 55 (if available) which may have fixes
+
+---
+
+## Path A: Downgrade react-native-gesture-handler (Highest Success Rate)
+
+This is the most targeted fix with minimal side effects.
+
+### Step 1: Modify package.json
+
+Change the gesture handler version from `~2.28.0` to a known working version:
+
+```json
+{
+  "dependencies": {
+    "react-native-gesture-handler": "2.16.2"
+  }
+}
+```
+
+### Step 2: Clear All Caches and Reinstall
+
+Run these commands in sequence in your Replit shell:
+
+```bash
+# Remove node_modules and lock files
+rm -rf node_modules
+rm -f package-lock.json
+rm -f yarn.lock
+
+# Clear Expo caches
+npx expo start --clear
+
+# Stop the above with Ctrl+C, then reinstall
+npm install
+
+# Verify the installed version
+npm list react-native-gesture-handler
+```
+
+**Expected output:** `react-native-gesture-handler@2.16.2`
+
+### Step 3: Update index.js
+
+Your current `index.js` is correct, but ensure it looks exactly like this:
+
+```javascript
+// index.js
+
+// GESTURE HANDLER MUST BE THE ABSOLUTE FIRST IMPORT
+import 'react-native-gesture-handler';
+
+// Hermes compatibility patches second
+import './src/patches/lokijs-hermes-patch';
+
+import { registerRootComponent } from 'expo';
+import App from './App';
+
+registerRootComponent(App);
+```
+
+### Step 4: Verify App.tsx Structure
+
+Your `App.tsx` is mostly correct, but let's ensure the GestureHandlerRootView is properly configured:
+
+```typescript
+// App.tsx
+
+import 'react-native-gesture-handler';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { DatabaseProvider } from '@nozbe/watermelondb/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import React, { useEffect, useRef } from 'react';
+import { AppState, AppStateStatus, StyleSheet } from 'react-native';
+import { PaperProvider } from 'react-native-paper';
+import { database } from './src/data/data_sources/offline_database';
+import { syncService } from './src/data/data_sources/SyncService';
+import AppNavigator from './src/presentation/navigation/AppNavigator';
+
+const queryClient = new QueryClient();
+
+const SYNC_INTERVAL_MS = 5 * 60 * 1000;
+
+function AppContent() {
+  const appState = useRef(AppState.currentState);
+  const lastSyncTime = useRef<number>(0);
+
+  useEffect(() => {
+    const performSync = async () => {
+      const now = Date.now();
+      if (now - lastSyncTime.current > 60000) {
+        console.log('[App] Performing automatic sync...');
+        lastSyncTime.current = now;
+        try {
+          await syncService.syncAll();
+        } catch (error) {
+          console.error('[App] Auto-sync failed:', error);
+        }
+      }
+    };
+
+    performSync();
+
+    const intervalId = setInterval(() => {
+      if (appState.current === 'active') {
+        performSync();
+      }
+    }, SYNC_INTERVAL_MS);
+
+    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+        console.log('[App] App came to foreground, syncing...');
+        performSync();
+      }
+      appState.current = nextAppState;
+    });
+
+    return () => {
+      clearInterval(intervalId);
+      subscription.remove();
+    };
+  }, []);
+
+  return <AppNavigator />;
+}
+
+export default function App() {
+  return (
+    <GestureHandlerRootView style={styles.container}>
+      <QueryClientProvider client={queryClient}>
+        <DatabaseProvider database={database}>
+          <PaperProvider>
+            <AppContent />
+          </PaperProvider>
+        </DatabaseProvider>
+      </QueryClientProvider>
+    </GestureHandlerRootView>
+  );
+}
+
+// Use StyleSheet instead of inline style for consistency
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+});
+```
+
+### Step 5: Update LoginScreen.tsx for Maximum Compatibility
+
+Replace your current LoginScreen with this version that uses multiple fallback strategies:
+
+```typescript
+// src/presentation/screens/auth/LoginScreen.tsx
+
+import React, { useState, useCallback } from 'react';
+import { 
+  Alert, 
+  StyleSheet, 
+  View, 
+  Platform, 
+  KeyboardAvoidingView, 
+  ScrollView, 
+  ActivityIndicator,
+  Pressable,  // React Native's built-in Pressable as fallback
+  Text as RNText,
+} from 'react-native';
+import { Text, TextInput } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+
+import { SupabaseClient } from '../../../data/data_sources/supabase_client';
+
+const colors = {
+  primary: '#1E3A5F',
+  primaryLight: '#2C5282',
+  accent: '#F97316',
+  background: '#F8FAFC',
+  surface: '#FFFFFF',
+  text: '#1E293B',
+  textSecondary: '#64748B',
+  textMuted: '#94A3B8',
+  border: '#E2E8F0',
+};
+
+type Props = {
+  navigation?: any;
+};
+
+export default function LoginScreen({ navigation }: Props) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Use useCallback to ensure stable function references
+  const handleLogin = useCallback(async () => {
+    console.log('[Login] === BUTTON PRESSED ===');
+    console.log('[Login] Email:', email);
+    console.log('[Login] Password length:', password.length);
+    
+    if (!email || !password) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    console.log('[Login] Starting login...');
+    setLoading(true);
+    
+    try {
+      const { data, error } = await SupabaseClient.signIn({
+        email: email.trim(),
+        password,
+      });
+      
+      console.log('[Login] Result:', { hasData: !!data, hasError: !!error, errorMsg: error?.message });
+      
+      if (error) {
+        setLoading(false);
+        Alert.alert('Login Failed', error.message || 'Authentication failed');
+        return;
+      }
+      
+      if (data?.session) {
+        console.log('[Login] Login successful!');
+        setLoading(false);
+        return;
+      }
+      
+      // No error but no session - check after a moment
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const { session } = await SupabaseClient.getSession();
+      
+      if (session) {
+        console.log('[Login] Session found!');
+        setLoading(false);
+        return;
+      }
+      
+      setLoading(false);
+      Alert.alert('Login Failed', 'Could not establish session. Please try again.');
+    } catch (e: any) {
+      console.log('[Login] Exception:', e?.message);
+      setLoading(false);
+      Alert.alert('Login Error', e?.message || 'An unexpected error occurred');
+    }
+  }, [email, password]);
+
+  const handleSignUp = useCallback(async () => {
+    console.log('[SignUp] === BUTTON PRESSED ===');
+    
+    if (!email || !password) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    setLoading(true);
+    const { error } = await SupabaseClient.signUp({
+      email: email.trim(),
+      password,
+    });
+    setLoading(false);
+
+    if (error) {
+      Alert.alert('Sign Up Failed', error.message);
+    } else {
+      Alert.alert('Success', 'Account created! Please check your email for a confirmation link.');
+    }
+  }, [email, password]);
+
+  const togglePassword = useCallback(() => {
+    setShowPassword(prev => !prev);
+  }, []);
+
+  return (
+    <KeyboardAvoidingView 
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <View style={styles.logoContainer}>
+            <MaterialCommunityIcons name="train" size={40} color="#fff" />
+          </View>
+          <Text style={styles.appName}>StationScout</Text>
+          <Text style={styles.tagline}>Discover events along your railway journey</Text>
+        </View>
+
+        <View style={styles.formContainer}>
+          <Text style={styles.welcomeText}>Welcome back</Text>
+          <Text style={styles.signInText}>Sign in to continue</Text>
+
+          <View style={styles.inputContainer}>
+            <MaterialCommunityIcons 
+              name="email-outline" 
+              size={20} 
+              color={colors.textMuted} 
+              style={styles.inputIcon}
+            />
+            <TextInput
+              label="Email"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              style={styles.input}
+              mode="flat"
+              underlineColor="transparent"
+              activeUnderlineColor={colors.primary}
+              textColor={colors.text}
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <MaterialCommunityIcons 
+              name="lock-outline" 
+              size={20} 
+              color={colors.textMuted} 
+              style={styles.inputIcon}
+            />
+            <TextInput
+              label="Password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+              style={styles.input}
+              mode="flat"
+              underlineColor="transparent"
+              activeUnderlineColor={colors.primary}
+              textColor={colors.text}
+              right={
+                <TextInput.Icon 
+                  icon={showPassword ? 'eye-off' : 'eye'} 
+                  onPress={togglePassword}
+                />
+              }
+            />
+          </View>
+
+          {/* Primary Button using React Native Pressable */}
+          <Pressable
+            onPress={handleLogin}
+            disabled={loading}
+            style={({ pressed }) => [
+              styles.primaryButton,
+              loading && styles.buttonDisabled,
+              pressed && styles.buttonPressed,
+            ]}
+            android_ripple={{ color: 'rgba(255,255,255,0.3)' }}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <RNText style={styles.primaryButtonText}>Sign In</RNText>
+            )}
+          </Pressable>
+
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          {/* Secondary Button using React Native Pressable */}
+          <Pressable
+            onPress={handleSignUp}
+            disabled={loading}
+            style={({ pressed }) => [
+              styles.secondaryButton,
+              loading && styles.buttonDisabled,
+              pressed && styles.secondaryButtonPressed,
+            ]}
+            android_ripple={{ color: 'rgba(30,58,95,0.1)' }}
+          >
+            <RNText style={styles.secondaryButtonText}>Create New Account</RNText>
+          </Pressable>
+        </View>
+
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>
+            By signing in, you agree to our Terms of Service
+          </Text>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  header: {
+    backgroundColor: colors.primary,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingBottom: 40,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+  },
+  logoContainer: {
+    width: 72,
+    height: 72,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  appName: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 8,
+  },
+  tagline: {
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.8)',
+    textAlign: 'center',
+  },
+  formContainer: {
+    flex: 1,
+    padding: 24,
+    paddingTop: 32,
+  },
+  welcomeText: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  signInText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    marginBottom: 32,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingLeft: 16,
+  },
+  inputIcon: {
+    marginRight: 8,
+  },
+  input: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    fontSize: 16,
+  },
+  primaryButton: {
+    borderRadius: 12,
+    marginTop: 8,
+    backgroundColor: colors.primary,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 56,
+  },
+  primaryButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  buttonPressed: {
+    backgroundColor: colors.primaryLight,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 24,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border,
+  },
+  dividerText: {
+    paddingHorizontal: 16,
+    color: colors.textMuted,
+    fontSize: 14,
+  },
+  secondaryButton: {
+    borderRadius: 12,
+    borderColor: colors.border,
+    borderWidth: 1,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+    minHeight: 56,
+  },
+  secondaryButtonText: {
+    color: colors.primary,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  secondaryButtonPressed: {
+    backgroundColor: 'rgba(30,58,95,0.05)',
+  },
+  footer: {
+    padding: 24,
+    alignItems: 'center',
+  },
+  footerText: {
+    fontSize: 12,
+    color: colors.textMuted,
+    textAlign: 'center',
+  },
+});
+```
+
+### Step 6: Build New APK
+
+```bash
+# Clear EAS cache and build
+eas build --profile development --platform android --clear-cache
+```
+
+### Step 7: Test on Device
+
+1. Download the new APK from https://expo.dev/accounts/mazhar76/projects/StationScout/builds
+2. Install on your Android device
+3. Open the app and test button presses
+
+---
+
+## Path B: Disable New Architecture (If Path A Fails)
+
+This requires more extensive changes but removes the Fabric renderer entirely.
+
+### Step 1: Update app.json
+
+```json
+{
+  "expo": {
+    "name": "StationScout",
+    "slug": "StationScout",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "stationscout",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": false,
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.mazhar76.stationscout",
+      "versionCode": 2,
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "output": "single",
+      "favicon": "./assets/images/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff",
+          "dark": {
+            "backgroundColor": "#000000"
+          }
+        }
+      ],
+      ["@lovesworking/watermelondb-expo-plugin-sdk-52-plus"],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "newArchEnabled": false,
+            "packagingOptions": {
+              "pickFirst": ["**/libc++_shared.so"]
+            },
+            "minSdkVersion": 24,
+            "compileSdkVersion": 34,
+            "targetSdkVersion": 34,
+            "buildToolsVersion": "34.0.0"
+          },
+          "ios": {
+            "newArchEnabled": false
+          }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": false
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "68975b98-456d-4a8f-9378-6f013a3e3b43"
+      }
+    }
+  }
+}
+```
+
+**Key changes:**
+- `newArchEnabled: false` at the root level
+- `reactCompiler: false` (React Compiler requires New Architecture)
+- `expo-build-properties` with explicit `newArchEnabled: false` for both platforms
+- Removed `predictiveBackGestureEnabled` (can conflict with legacy architecture)
+
+### Step 2: Update eas.json for Clean Builds
+
+```json
+{
+  "cli": {
+    "version": ">= 5.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleDebug"
+      },
+      "ios": {
+        "simulator": true
+      },
+      "env": {
+        "EXPO_USE_FAST_RESOLVER": "1"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": true
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "android": {
+        "buildType": "app-bundle"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
+```
+
+### Step 3: Perform Complete Clean Build
+
+```bash
+# Remove all cached builds and dependencies
+rm -rf node_modules
+rm -rf .expo
+rm -f package-lock.json
+
+# Reinstall
+npm install
+
+# Clear EAS cache completely and rebuild
+eas build --profile development --platform android --clear-cache --no-wait
+```
+
+If you encounter Gradle errors, try adding this to your `eas.json` development profile:
+
+```json
+{
+  "build": {
+    "development": {
+      "env": {
+        "EAS_BUILD_AUTOCOMMIT": "0",
+        "GRADLE_OPTS": "-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g"
+      }
+    }
+  }
+}
+```
+
+---
+
+## Path C: Hybrid Approach (Recommended if Time-Sensitive)
+
+Combine downgrade + architecture change for maximum compatibility.
+
+### Step 1: Apply All Changes Together
+
+**package.json changes:**
+```json
+{
+  "dependencies": {
+    "react-native-gesture-handler": "2.16.2",
+    "react-native-reanimated": "~3.10.0"
+  }
+}
+```
+
+Note: Downgrading reanimated as well, as it's tightly coupled with gesture-handler.
+
+**app.json changes:**
+```json
+{
+  "expo": {
+    "newArchEnabled": false,
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": false
+    },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "newArchEnabled": false,
+            "packagingOptions": {
+              "pickFirst": ["**/libc++_shared.so"]
+            }
+          },
+          "ios": {
+            "newArchEnabled": false
+          }
+        }
+      ]
+    ]
+  }
+}
+```
+
+### Step 2: Version Compatibility Matrix
+
+For Expo SDK 54, these versions are known to work together with legacy architecture:
+
+| Package | Working Version |
+|---------|-----------------|
+| react-native-gesture-handler | 2.16.2 |
+| react-native-reanimated | 3.10.1 |
+| react-native-screens | 3.29.0 |
+| @react-navigation/native | 6.1.18 |
+
+### Step 3: Update package.json with Specific Versions
+
+```json
+{
+  "dependencies": {
+    "react-native-gesture-handler": "2.16.2",
+    "react-native-reanimated": "3.10.1",
+    "react-native-screens": "3.29.0",
+    "@react-navigation/native": "6.1.18",
+    "@react-navigation/native-stack": "6.9.26",
+    "@react-navigation/bottom-tabs": "6.5.20"
+  }
+}
+```
+
+---
+
+## Diagnostic Build: Create a Minimal Test Screen
+
+Before rebuilding the full app, let's create a minimal test screen to verify touch events work:
+
+### Step 1: Create TestScreen.tsx
+
+Create a new file at `src/presentation/screens/TestScreen.tsx`:
+
+```typescript
+// src/presentation/screens/TestScreen.tsx
+
+import React, { useState } from 'react';
+import { 
+  View, 
+  Text, 
+  Pressable, 
+  TouchableOpacity,
+  Alert,
+  StyleSheet,
+  ScrollView,
+} from 'react-native';
+import { TouchableOpacity as GHOpacity } from 'react-native-gesture-handler';
+import { Button } from 'react-native-paper';
+
+export default function TestScreen() {
+  const [pressCount, setPressCount] = useState(0);
+  const [log, setLog] = useState<string[]>([]);
+
+  const addLog = (message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setLog(prev => [`[${timestamp}] ${message}`, ...prev.slice(0, 19)]);
+    console.log(message);
+  };
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>Touch Event Test</Text>
+      <Text style={styles.counter}>Press Count: {pressCount}</Text>
+
+      {/* Test 1: React Native Pressable */}
+      <Pressable
+        onPress={() => {
+          setPressCount(p => p + 1);
+          addLog('RN Pressable pressed');
+          Alert.alert('Success', 'React Native Pressable works!');
+        }}
+        style={({ pressed }) => [
+          styles.button,
+          { backgroundColor: pressed ? '#1a5f3c' : '#22c55e' }
+        ]}
+      >
+        <Text style={styles.buttonText}>1. RN Pressable</Text>
+      </Pressable>
+
+      {/* Test 2: React Native TouchableOpacity */}
+      <TouchableOpacity
+        onPress={() => {
+          setPressCount(p => p + 1);
+          addLog('RN TouchableOpacity pressed');
+          Alert.alert('Success', 'React Native TouchableOpacity works!');
+        }}
+        style={[styles.button, { backgroundColor: '#3b82f6' }]}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.buttonText}>2. RN TouchableOpacity</Text>
+      </TouchableOpacity>
+
+      {/* Test 3: Gesture Handler TouchableOpacity */}
+      <GHOpacity
+        onPress={() => {
+          setPressCount(p => p + 1);
+          addLog('GH TouchableOpacity pressed');
+          Alert.alert('Success', 'Gesture Handler TouchableOpacity works!');
+        }}
+        style={[styles.button, { backgroundColor: '#f59e0b' }]}
+      >
+        <Text style={styles.buttonText}>3. GH TouchableOpacity</Text>
+      </GHOpacity>
+
+      {/* Test 4: React Native Paper Button */}
+      <Button
+        mode="contained"
+        onPress={() => {
+          setPressCount(p => p + 1);
+          addLog('Paper Button pressed');
+          Alert.alert('Success', 'React Native Paper Button works!');
+        }}
+        style={[styles.button, { backgroundColor: '#8b5cf6' }]}
+      >
+        4. Paper Button
+      </Button>
+
+      {/* Event Log */}
+      <View style={styles.logContainer}>
+        <Text style={styles.logTitle}>Event Log:</Text>
+        <ScrollView style={styles.logScroll}>
+          {log.map((entry, i) => (
+            <Text key={i} style={styles.logEntry}>{entry}</Text>
+          ))}
+          {log.length === 0 && (
+            <Text style={styles.logEmpty}>No events yet. Tap a button above.</Text>
+          )}
+        </ScrollView>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 20,
+    backgroundColor: '#f8fafc',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 10,
+    marginTop: 40,
+  },
+  counter: {
+    fontSize: 18,
+    textAlign: 'center',
+    marginBottom: 20,
+    color: '#64748b',
+  },
+  button: {
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    alignItems: 'center',
+    minHeight: 56,
+    justifyContent: 'center',
+  },
+  buttonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  logContainer: {
+    flex: 1,
+    marginTop: 20,
+    backgroundColor: '#1e293b',
+    borderRadius: 12,
+    padding: 12,
+  },
+  logTitle: {
+    color: '#94a3b8',
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  logScroll: {
+    flex: 1,
+  },
+  logEntry: {
+    color: '#22c55e',
+    fontFamily: 'monospace',
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  logEmpty: {
+    color: '#64748b',
+    fontStyle: 'italic',
+  },
+});
+```
+
+### Step 2: Temporarily Replace LoginScreen with TestScreen
+
+In your navigator, temporarily route to TestScreen instead of LoginScreen to test basic touch functionality.
+
+---
+
+## Build Commands Summary
+
+```bash
+# Full clean rebuild for Path A (gesture handler downgrade)
+rm -rf node_modules .expo
+npm install
+eas build --profile development --platform android --clear-cache
+
+# Check build status
+eas build:list --platform android --limit 5
+
+# Download and install the APK
+# Go to https://expo.dev/accounts/mazhar76/projects/StationScout/builds
+# Download the latest APK and install on device
+```
+
+---
+
+## Verification Checklist
+
+After implementing fixes, verify each of these:
+
+| Check | How to Verify |
+|-------|---------------|
+| Gesture handler version | `npm list react-native-gesture-handler` should show 2.16.2 |
+| New arch disabled | Check app.json has `newArchEnabled: false` |
+| Build succeeds | EAS build completes without Gradle errors |
+| APK installs | App opens on device without crash |
+| Buttons respond | Tapping "Sign In" shows console log or Alert |
+| Visual feedback | Buttons show ripple/opacity change on press |
+
+---
+
+## If All Paths Fail: Nuclear Option
+
+If none of the above work, consider:
+
+1. **Eject to bare workflow:**
+   ```bash
+   npx expo prebuild
+   ```
+   This gives you full control over native code but requires more maintenance.
+
+2. **Downgrade Expo SDK:**
+   Roll back to Expo SDK 52 which has better stability with the legacy architecture.
+
+3. **Alternative UI library:**
+   Replace react-native-paper with NativeBase or custom Pressable components that don't depend on gesture-handler for basic buttons.
+
+---
+
+## Timeline Estimate
+
+| Path | Estimated Time | Risk Level |
+|------|---------------|------------|
+| Path A (downgrade) | 30 minutes + build time | Low |
+| Path B (disable new arch) | 1 hour + build time | Medium |
+| Path C (hybrid) | 1-2 hours + build time | Low-Medium |
+| Nuclear (eject) | 4-8 hours | High |
+
+---
+
+Would you like me to provide the exact commands to run in sequence, or help you implement any specific path?

@@ -1,6 +1,15 @@
-import React, { useState } from 'react';
-import { Alert, StyleSheet, View, Platform, KeyboardAvoidingView, ScrollView, ActivityIndicator } from 'react-native';
-import { TouchableOpacity } from 'react-native-gesture-handler';
+import React, { useState, useCallback } from 'react';
+import { 
+  Alert, 
+  StyleSheet, 
+  View, 
+  Platform, 
+  KeyboardAvoidingView, 
+  ScrollView, 
+  ActivityIndicator,
+  Pressable,
+  Text as RNText,
+} from 'react-native';
 import { Text, TextInput } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -28,7 +37,11 @@ export default function LoginScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  const handleLogin = async () => {
+  const handleLogin = useCallback(async () => {
+    console.log('[Login] === BUTTON PRESSED ===');
+    console.log('[Login] Email:', email);
+    console.log('[Login] Password length:', password.length);
+    
     if (!email || !password) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
@@ -47,19 +60,16 @@ export default function LoginScreen({ navigation }: Props) {
       
       if (error) {
         setLoading(false);
-        // Show the actual error message from Supabase
         Alert.alert('Login Failed', error.message || 'Authentication failed');
         return;
       }
       
       if (data?.session) {
-        // Success - navigation will happen automatically
         console.log('[Login] Login successful!');
         setLoading(false);
         return;
       }
       
-      // No error but no session - check after a moment
       await new Promise(resolve => setTimeout(resolve, 500));
       const { session } = await SupabaseClient.getSession();
       
@@ -76,9 +86,11 @@ export default function LoginScreen({ navigation }: Props) {
       setLoading(false);
       Alert.alert('Login Error', e?.message || 'An unexpected error occurred');
     }
-  };
+  }, [email, password]);
 
-  const handleSignUp = async () => {
+  const handleSignUp = useCallback(async () => {
+    console.log('[SignUp] === BUTTON PRESSED ===');
+    
     if (!email || !password) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
@@ -96,7 +108,11 @@ export default function LoginScreen({ navigation }: Props) {
     } else {
       Alert.alert('Success', 'Account created! Please check your email for a confirmation link.');
     }
-  };
+  }, [email, password]);
+
+  const togglePassword = useCallback(() => {
+    setShowPassword(prev => !prev);
+  }, []);
 
   return (
     <KeyboardAvoidingView 
@@ -106,6 +122,7 @@ export default function LoginScreen({ navigation }: Props) {
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
           <View style={styles.logoContainer}>
@@ -137,7 +154,6 @@ export default function LoginScreen({ navigation }: Props) {
               underlineColor="transparent"
               activeUnderlineColor={colors.primary}
               textColor={colors.text}
-              placeholderTextColor={colors.textMuted}
             />
           </View>
 
@@ -158,28 +174,31 @@ export default function LoginScreen({ navigation }: Props) {
               underlineColor="transparent"
               activeUnderlineColor={colors.primary}
               textColor={colors.text}
-              placeholderTextColor={colors.textMuted}
               right={
                 <TextInput.Icon 
                   icon={showPassword ? 'eye-off' : 'eye'} 
-                  onPress={() => setShowPassword(!showPassword)}
+                  onPress={togglePassword}
                 />
               }
             />
           </View>
 
-          <TouchableOpacity
+          <Pressable
             onPress={handleLogin}
             disabled={loading}
-            style={[styles.primaryButton, loading && styles.buttonDisabled]}
-            activeOpacity={0.7}
+            style={({ pressed }) => [
+              styles.primaryButton,
+              loading && styles.buttonDisabled,
+              pressed && styles.buttonPressed,
+            ]}
+            android_ripple={{ color: 'rgba(255,255,255,0.3)' }}
           >
             {loading ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
-              <Text style={styles.primaryButtonText}>Sign In</Text>
+              <RNText style={styles.primaryButtonText}>Sign In</RNText>
             )}
-          </TouchableOpacity>
+          </Pressable>
 
           <View style={styles.divider}>
             <View style={styles.dividerLine} />
@@ -187,14 +206,18 @@ export default function LoginScreen({ navigation }: Props) {
             <View style={styles.dividerLine} />
           </View>
 
-          <TouchableOpacity
+          <Pressable
             onPress={handleSignUp}
             disabled={loading}
-            style={[styles.secondaryButton, loading && styles.buttonDisabled]}
-            activeOpacity={0.7}
+            style={({ pressed }) => [
+              styles.secondaryButton,
+              loading && styles.buttonDisabled,
+              pressed && styles.secondaryButtonPressed,
+            ]}
+            android_ripple={{ color: 'rgba(30,58,95,0.1)' }}
           >
-            <Text style={styles.secondaryButtonText}>Create New Account</Text>
-          </TouchableOpacity>
+            <RNText style={styles.secondaryButtonText}>Create New Account</RNText>
+          </Pressable>
         </View>
 
         <View style={styles.footer}>
@@ -275,15 +298,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'transparent',
     fontSize: 16,
-    color: '#1E293B',
   },
   primaryButton: {
     borderRadius: 12,
     marginTop: 8,
-    backgroundColor: '#1E3A5F',
+    backgroundColor: colors.primary,
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 56,
   },
   primaryButtonText: {
     fontSize: 16,
@@ -292,6 +315,9 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.6,
+  },
+  buttonPressed: {
+    backgroundColor: colors.primaryLight,
   },
   divider: {
     flexDirection: 'row',
@@ -310,17 +336,21 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     borderRadius: 12,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
     borderWidth: 1,
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'transparent',
+    minHeight: 56,
   },
   secondaryButtonText: {
-    color: '#1E3A5F',
+    color: colors.primary,
     fontSize: 16,
     fontWeight: '600',
+  },
+  secondaryButtonPressed: {
+    backgroundColor: 'rgba(30,58,95,0.05)',
   },
   footer: {
     padding: 24,
