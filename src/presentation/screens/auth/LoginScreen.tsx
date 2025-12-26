@@ -7,7 +7,7 @@ import {
   KeyboardAvoidingView, 
   ScrollView, 
   ActivityIndicator,
-  Pressable,
+  TouchableOpacity,
   Text as RNText,
 } from 'react-native';
 import { Text, TextInput } from 'react-native-paper';
@@ -121,7 +121,7 @@ export default function LoginScreen({ navigation }: Props) {
     >
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
+        keyboardShouldPersistTaps="always"
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
@@ -183,22 +183,21 @@ export default function LoginScreen({ navigation }: Props) {
             />
           </View>
 
-          <Pressable
+          <TouchableOpacity
             onPress={handleLogin}
             disabled={loading}
-            style={({ pressed }) => [
+            activeOpacity={0.7}
+            style={[
               styles.primaryButton,
               loading && styles.buttonDisabled,
-              pressed && styles.buttonPressed,
             ]}
-            android_ripple={{ color: 'rgba(255,255,255,0.3)' }}
           >
             {loading ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
               <RNText style={styles.primaryButtonText}>Sign In</RNText>
             )}
-          </Pressable>
+          </TouchableOpacity>
 
           <View style={styles.divider}>
             <View style={styles.dividerLine} />
@@ -206,18 +205,17 @@ export default function LoginScreen({ navigation }: Props) {
             <View style={styles.dividerLine} />
           </View>
 
-          <Pressable
+          <TouchableOpacity
             onPress={handleSignUp}
             disabled={loading}
-            style={({ pressed }) => [
+            activeOpacity={0.7}
+            style={[
               styles.secondaryButton,
               loading && styles.buttonDisabled,
-              pressed && styles.secondaryButtonPressed,
             ]}
-            android_ripple={{ color: 'rgba(30,58,95,0.1)' }}
           >
             <RNText style={styles.secondaryButtonText}>Create New Account</RNText>
-          </Pressable>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.footer}>
