@@ -132,11 +132,11 @@ export default function LoginScreen({ navigation }: Props) {
           <Text style={styles.tagline}>Discover events along your railway journey</Text>
         </View>
 
-        <View style={styles.formContainer}>
+        <View style={[styles.formContainer, { pointerEvents: 'box-none' }]}>
           <Text style={styles.welcomeText}>Welcome back</Text>
           <Text style={styles.signInText}>Sign in to continue</Text>
 
-          <View style={styles.inputContainer}>
+          <View style={[styles.inputContainer, { pointerEvents: 'box-none' }]}>
             <MaterialCommunityIcons 
               name="email-outline" 
               size={20} 
@@ -157,7 +157,7 @@ export default function LoginScreen({ navigation }: Props) {
             />
           </View>
 
-          <View style={styles.inputContainer}>
+          <View style={[styles.inputContainer, { pointerEvents: 'box-none' }]}>
             <MaterialCommunityIcons 
               name="lock-outline" 
               size={20} 
