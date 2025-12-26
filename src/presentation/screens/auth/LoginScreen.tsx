@@ -184,7 +184,10 @@ export default function LoginScreen({ navigation }: Props) {
           </View>
 
           <TouchableOpacity
-            onPress={handleLogin}
+            onPress={() => {
+              Alert.alert('Button works!', 'Touch event received');
+              handleLogin();
+            }}
             disabled={loading}
             activeOpacity={0.7}
             style={[
