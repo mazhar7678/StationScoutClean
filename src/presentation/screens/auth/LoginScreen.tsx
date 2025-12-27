@@ -4,11 +4,10 @@ import {
   StyleSheet, 
   View, 
   Platform, 
-  KeyboardAvoidingView, 
-  ScrollView, 
+  Pressable,
+  Text as RNText,
+  TextInput as RNTextInput,
 } from 'react-native';
-import { Text, TextInput, Button } from 'react-native-paper';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { SupabaseClient } from '../../../data/data_sources/supabase_client';
 
@@ -32,12 +31,10 @@ export default function LoginScreen({ navigation }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
 
-  const handleLogin = useCallback(async () => {
+  const handleLogin = async () => {
     console.log('[Login] === BUTTON PRESSED ===');
-    console.log('[Login] Email:', email);
-    console.log('[Login] Password length:', password.length);
+    Alert.alert('Button Pressed', 'Login button was tapped!');
     
     const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -94,10 +91,11 @@ export default function LoginScreen({ navigation }: Props) {
       setLoading(false);
       Alert.alert('Login Error', e?.message || 'An unexpected error occurred');
     }
-  }, [email, password]);
+  };
 
-  const handleSignUp = useCallback(async () => {
+  const handleSignUp = async () => {
     console.log('[SignUp] === BUTTON PRESSED ===');
+    Alert.alert('Button Pressed', 'Sign up button was tapped!');
     
     if (!email || !password) {
       Alert.alert('Error', 'Please fill in all fields');
@@ -116,120 +114,82 @@ export default function LoginScreen({ navigation }: Props) {
     } else {
       Alert.alert('Success', 'Account created! Please check your email for a confirmation link.');
     }
-  }, [email, password]);
-
-  const togglePassword = useCallback(() => {
-    setShowPassword(prev => !prev);
-  }, []);
+  };
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView 
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="always"
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.header}>
-          <View style={styles.logoContainer}>
-            <MaterialCommunityIcons name="train" size={40} color="#fff" />
-          </View>
-          <Text style={styles.appName}>StationScout</Text>
-          <Text style={styles.tagline}>Discover events along your railway journey</Text>
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <RNText style={styles.appName}>StationScout</RNText>
+        <RNText style={styles.tagline}>Discover events along your journey</RNText>
+      </View>
+
+      <View style={styles.formContainer}>
+        <RNText style={styles.welcomeText}>Welcome back</RNText>
+        
+        <RNTextInput
+          placeholder="Email"
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          keyboardType="email-address"
+          style={styles.input}
+          placeholderTextColor={colors.textMuted}
+        />
+
+        <RNTextInput
+          placeholder="Password"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+          style={styles.input}
+          placeholderTextColor={colors.textMuted}
+        />
+
+        <Pressable
+          onPress={() => {
+            console.log('PRESSED');
+            Alert.alert('Button pressed!');
+            handleLogin();
+          }}
+          style={({ pressed }) => [
+            styles.primaryButton,
+            pressed && { opacity: 0.7 }
+          ]}
+          android_ripple={{ color: 'rgba(255,255,255,0.3)' }}
+        >
+          <RNText style={styles.primaryButtonText}>
+            {loading ? 'Signing In...' : 'Sign In'}
+          </RNText>
+        </Pressable>
+
+        <View style={styles.divider}>
+          <View style={styles.dividerLine} />
+          <RNText style={styles.dividerText}>or</RNText>
+          <View style={styles.dividerLine} />
         </View>
 
-        <View style={styles.formContainer}>
-          <Text style={styles.welcomeText}>Welcome back</Text>
-          <Text style={styles.signInText}>Sign in to continue</Text>
+        <Pressable
+          onPress={() => {
+            console.log('SIGNUP PRESSED');
+            Alert.alert('Sign Up pressed!');
+            handleSignUp();
+          }}
+          style={({ pressed }) => [
+            styles.secondaryButton,
+            pressed && { opacity: 0.7 }
+          ]}
+          android_ripple={{ color: 'rgba(30,58,95,0.1)' }}
+        >
+          <RNText style={styles.secondaryButtonText}>Create New Account</RNText>
+        </Pressable>
+      </View>
 
-          <View style={styles.inputContainer}>
-            <MaterialCommunityIcons 
-              name="email-outline" 
-              size={20} 
-              color={colors.textMuted} 
-              style={styles.inputIcon}
-            />
-            <TextInput
-              label="Email"
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              style={styles.input}
-              mode="flat"
-              underlineColor="transparent"
-              activeUnderlineColor={colors.primary}
-              textColor={colors.text}
-            />
-          </View>
-
-          <View style={styles.inputContainer}>
-            <MaterialCommunityIcons 
-              name="lock-outline" 
-              size={20} 
-              color={colors.textMuted} 
-              style={styles.inputIcon}
-            />
-            <TextInput
-              label="Password"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry={!showPassword}
-              style={styles.input}
-              mode="flat"
-              underlineColor="transparent"
-              activeUnderlineColor={colors.primary}
-              textColor={colors.text}
-              right={
-                <TextInput.Icon 
-                  icon={showPassword ? 'eye-off' : 'eye'} 
-                  onPress={togglePassword}
-                />
-              }
-            />
-          </View>
-
-          <Button
-            mode="contained"
-            onPress={handleLogin}
-            loading={loading}
-            disabled={loading}
-            style={styles.primaryButton}
-            contentStyle={styles.primaryButtonContent}
-            labelStyle={styles.primaryButtonText}
-            buttonColor={colors.primary}
-          >
-            Sign In
-          </Button>
-
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <Button
-            mode="outlined"
-            onPress={handleSignUp}
-            disabled={loading}
-            style={styles.secondaryButton}
-            contentStyle={styles.secondaryButtonContent}
-            labelStyle={styles.secondaryButtonLabel}
-            textColor={colors.primary}
-          >
-            Create New Account
-          </Button>
-        </View>
-
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>
-            By signing in, you agree to our Terms of Service
-          </Text>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <View style={styles.footer}>
+        <RNText style={styles.footerText}>
+          By signing in, you agree to our Terms of Service
+        </RNText>
+      </View>
+    </View>
   );
 }
 
@@ -238,24 +198,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  scrollContent: {
-    flexGrow: 1,
-  },
   header: {
     backgroundColor: colors.primary,
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingTop: Platform.OS === 'ios' ? 60 : 50,
     paddingBottom: 40,
     paddingHorizontal: 24,
     alignItems: 'center',
-  },
-  logoContainer: {
-    width: 72,
-    height: 72,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
   },
   appName: {
     fontSize: 32,
@@ -277,42 +225,31 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 4,
+    marginBottom: 24,
   },
-  signInText: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    marginBottom: 32,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  input: {
     backgroundColor: colors.surface,
     borderRadius: 12,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: colors.border,
-    paddingLeft: 16,
-  },
-  inputIcon: {
-    marginRight: 8,
-  },
-  input: {
-    flex: 1,
-    backgroundColor: 'transparent',
+    padding: 16,
     fontSize: 16,
+    color: colors.text,
   },
   primaryButton: {
+    backgroundColor: colors.primary,
     borderRadius: 12,
     marginTop: 8,
-  },
-  primaryButtonContent: {
-    paddingVertical: 8,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
     minHeight: 56,
   },
   primaryButtonText: {
     fontSize: 16,
     fontWeight: '600',
+    color: '#FFFFFF',
   },
   divider: {
     flexDirection: 'row',
@@ -332,12 +269,15 @@ const styles = StyleSheet.create({
   secondaryButton: {
     borderRadius: 12,
     borderColor: colors.border,
-  },
-  secondaryButtonContent: {
-    paddingVertical: 8,
+    borderWidth: 1,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
     minHeight: 56,
+    backgroundColor: 'transparent',
   },
-  secondaryButtonLabel: {
+  secondaryButtonText: {
+    color: colors.primary,
     fontSize: 16,
     fontWeight: '600',
   },
