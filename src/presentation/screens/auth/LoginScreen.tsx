@@ -55,10 +55,20 @@ export default function LoginScreen({ navigation }: Props) {
     setLoading(true);
     
     try {
+      // Set timeout alert
+      const timeoutId = setTimeout(() => {
+        Alert.alert('Timeout', 'Request is taking too long. The network request may have failed.');
+      }, 10000);
+      
+      Alert.alert('Step 3', 'Calling signIn...');
+      
       const { data, error } = await SupabaseClient.signIn({
         email: email.trim(),
         password,
       });
+      
+      clearTimeout(timeoutId);
+      Alert.alert('Step 4', `signIn returned. data: ${!!data}, error: ${!!error}`);
       
       setLoading(false);
       
@@ -72,7 +82,7 @@ export default function LoginScreen({ navigation }: Props) {
         return;
       }
       
-      Alert.alert('Step 3', 'Checking session...');
+      Alert.alert('Step 5', 'Checking session...');
       await new Promise(resolve => setTimeout(resolve, 500));
       const { session } = await SupabaseClient.getSession();
       
