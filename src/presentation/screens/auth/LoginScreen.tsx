@@ -33,14 +33,14 @@ export default function LoginScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    Alert.alert('Step 1', 'Button pressed, starting login...');
+    console.log('[Login] Button pressed');
     
     const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
     
     if (!supabaseUrl || !supabaseKey) {
       Alert.alert(
-        'Config Error',
+        'Configuration Error',
         `URL: ${supabaseUrl ? 'OK' : 'MISSING'}\nKey: ${supabaseKey ? 'OK' : 'MISSING'}`
       );
       return;
@@ -51,56 +51,50 @@ export default function LoginScreen({ navigation }: Props) {
       return;
     }
 
-    Alert.alert('Step 2', `Attempting login for: ${email}`);
     setLoading(true);
     
     try {
-      // Set timeout alert
-      const timeoutId = setTimeout(() => {
-        Alert.alert('Timeout', 'Request is taking too long. The network request may have failed.');
-      }, 10000);
-      
-      Alert.alert('Step 3', 'Calling signIn...');
+      console.log('[Login] Calling signIn for:', email.trim());
       
       const { data, error } = await SupabaseClient.signIn({
         email: email.trim(),
         password,
       });
       
-      clearTimeout(timeoutId);
-      Alert.alert('Step 4', `signIn returned. data: ${!!data}, error: ${!!error}`);
-      
       setLoading(false);
+      console.log('[Login] signIn returned - data:', !!data, 'error:', !!error);
       
       if (error) {
-        Alert.alert('Login Failed', `Error: ${error.message}`);
+        console.log('[Login] Error message:', error.message);
+        Alert.alert('Login Failed', error.message || 'Unknown error occurred');
         return;
       }
       
       if (data?.session) {
-        Alert.alert('Success!', 'Login successful! You should be redirected now.');
+        console.log('[Login] Success - session created');
+        // Navigation will happen automatically via auth state change
         return;
       }
       
-      Alert.alert('Step 5', 'Checking session...');
+      // Double-check session
       await new Promise(resolve => setTimeout(resolve, 500));
       const { session } = await SupabaseClient.getSession();
       
       if (session) {
-        Alert.alert('Success!', 'Session found! You should be redirected now.');
+        console.log('[Login] Session found on recheck');
         return;
       }
       
-      Alert.alert('Failed', 'No session was created. Please try again.');
+      Alert.alert('Login Issue', 'Authentication succeeded but no session was created. Please try again.');
     } catch (e: any) {
       setLoading(false);
-      Alert.alert('Exception', `Error: ${e?.message || 'Unknown error'}`);
+      console.log('[Login] Exception:', e?.message);
+      Alert.alert('Error', e?.message || 'An unexpected error occurred');
     }
   };
 
   const handleSignUp = async () => {
-    console.log('[SignUp] === BUTTON PRESSED ===');
-    Alert.alert('Button Pressed', 'Sign up button was tapped!');
+    console.log('[SignUp] Button pressed');
     
     if (!email || !password) {
       Alert.alert('Error', 'Please fill in all fields');
@@ -151,11 +145,7 @@ export default function LoginScreen({ navigation }: Props) {
         />
 
         <Pressable
-          onPress={() => {
-            console.log('PRESSED');
-            Alert.alert('Button pressed!');
-            handleLogin();
-          }}
+          onPress={handleLogin}
           style={({ pressed }) => [
             styles.primaryButton,
             pressed && { opacity: 0.7 }
@@ -174,11 +164,7 @@ export default function LoginScreen({ navigation }: Props) {
         </View>
 
         <Pressable
-          onPress={() => {
-            console.log('SIGNUP PRESSED');
-            Alert.alert('Sign Up pressed!');
-            handleSignUp();
-          }}
+          onPress={handleSignUp}
           style={({ pressed }) => [
             styles.secondaryButton,
             pressed && { opacity: 0.7 }

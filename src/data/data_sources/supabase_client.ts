@@ -145,11 +145,17 @@ class SupabaseClientService {
                 this.notifyListeners();
                 resolve({ data: { user, session: user }, error: null });
               } else {
+                console.log('[SupabaseClient] Login failed with status:', xhr.status);
+                console.log('[SupabaseClient] Response:', xhr.responseText);
                 let errorMsg = 'Sign in failed';
                 try {
                   const errorData = JSON.parse(xhr.responseText);
-                  errorMsg = errorData.error_description || errorData.msg || errorMsg;
-                } catch {}
+                  errorMsg = errorData.error_description || errorData.error || errorData.msg || errorData.message || `HTTP ${xhr.status}`;
+                  console.log('[SupabaseClient] Parsed error:', errorMsg);
+                } catch (parseErr) {
+                  errorMsg = xhr.responseText || `HTTP ${xhr.status} error`;
+                  console.log('[SupabaseClient] Could not parse error, using raw:', errorMsg);
+                }
                 resolve({ data: null, error: { message: errorMsg } });
               }
             } catch (parseError: any) {
