@@ -100,9 +100,16 @@ class SupabaseClientService {
   }
 
   async signIn(credentials: { email: string; password: string }): Promise<AuthResponse> {
+    console.log('[SupabaseClient] signIn called');
+    console.log('[SupabaseClient] URL configured:', !!supabaseUrl);
+    console.log('[SupabaseClient] Key configured:', !!supabaseKey);
+    
     if (!supabaseUrl || !supabaseKey) {
+      console.log('[SupabaseClient] ERROR: Supabase not configured');
       return { data: null, error: { message: 'Supabase not configured' } };
     }
+
+    console.log('[SupabaseClient] Making request to:', `${supabaseUrl}/auth/v1/token?grant_type=password`);
 
     // Use XMLHttpRequest instead of fetch to avoid Hermes event emitter issues
     return new Promise((resolve) => {
@@ -112,10 +119,15 @@ class SupabaseClientService {
         xhr.setRequestHeader('apikey', supabaseKey);
         xhr.setRequestHeader('Content-Type', 'application/json');
         
+        console.log('[SupabaseClient] XHR created and configured');
+        
         xhr.onreadystatechange = async () => {
+          console.log('[SupabaseClient] XHR state changed:', xhr.readyState);
           if (xhr.readyState === 4) {
+            console.log('[SupabaseClient] XHR complete, status:', xhr.status);
             try {
               if (xhr.status >= 200 && xhr.status < 300) {
+                console.log('[SupabaseClient] Login successful, parsing response...');
                 const data = JSON.parse(xhr.responseText);
                 const user: AuthUser = {
                   id: data.user?.id || '',
@@ -161,13 +173,16 @@ class SupabaseClientService {
         };
 
         xhr.onerror = () => {
+          console.log('[SupabaseClient] XHR network error');
           resolve({ data: null, error: { message: 'Network error. Please check your connection.' } });
         };
 
+        console.log('[SupabaseClient] Sending XHR request...');
         xhr.send(JSON.stringify({
           email: credentials.email,
           password: credentials.password,
         }));
+        console.log('[SupabaseClient] XHR request sent');
       } catch (e: any) {
         resolve({ data: null, error: { message: e?.message || 'Request failed' } });
       }

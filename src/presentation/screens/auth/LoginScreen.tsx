@@ -42,6 +42,17 @@ export default function LoginScreen({ navigation }: Props) {
     console.log('[Login] Email:', email);
     console.log('[Login] Password length:', password.length);
     
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseKey) {
+      Alert.alert(
+        'Configuration Error',
+        `Supabase not configured.\nURL: ${supabaseUrl ? 'Set' : 'MISSING'}\nKey: ${supabaseKey ? 'Set' : 'MISSING'}`
+      );
+      return;
+    }
+    
     if (!email || !password) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
@@ -184,10 +195,7 @@ export default function LoginScreen({ navigation }: Props) {
           </View>
 
           <TouchableOpacity
-            onPress={() => {
-              Alert.alert('Button works!', 'Touch event received');
-              handleLogin();
-            }}
+            onPress={handleLogin}
             disabled={loading}
             activeOpacity={0.7}
             style={[
