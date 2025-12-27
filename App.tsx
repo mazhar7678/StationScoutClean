@@ -1,3 +1,8 @@
+import 'react-native-get-random-values';
+import 'react-native-url-polyfill/auto';
+import { Buffer } from 'buffer';
+global.Buffer = Buffer;
+
 import 'react-native-gesture-handler';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { DatabaseProvider } from '@nozbe/watermelondb/react';

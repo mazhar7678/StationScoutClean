@@ -1,178 +1,174 @@
-// src/data/data_sources/supabase_client.ts
-// Using axios for reliable Android/Hermes networking
-
-import axios from 'axios';
+import { createClient, SupabaseClient as SupabaseClientType } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Alert } from 'react-native';
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-
-const AUTH_USER_KEY = '@stationscout_auth_user';
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
 export interface AuthUser {
   id: string;
   email: string;
-  access_token: string;
-  refresh_token: string;
+  access_token?: string;
+  refresh_token?: string;
 }
 
-interface AuthResponse {
-  data: { user: AuthUser | null; session: any } | null;
+export interface AuthResponse {
+  data: { user: AuthUser | null; session: AuthUser | null } | null;
   error: { message: string } | null;
 }
 
-class SupabaseClientService {
+type AuthListener = (user: AuthUser | null) => void;
+
+const AUTH_USER_KEY = 'supabase_user';
+
+class SupabaseClientWrapper {
+  private supabase: SupabaseClientType | null = null;
   private currentUser: AuthUser | null = null;
-  private sessionListeners: ((user: AuthUser | null) => void)[] = [];
+  private listeners: AuthListener[] = [];
+  private initialized = false;
 
   constructor() {
-    this.loadStoredSession();
+    this.initialize();
   }
 
-  private async loadStoredSession() {
+  private async initialize() {
+    if (this.initialized) return;
+    this.initialized = true;
+
+    if (supabaseUrl && supabaseKey) {
+      this.supabase = createClient(supabaseUrl, supabaseKey, {
+        auth: {
+          storage: AsyncStorage,
+          autoRefreshToken: true,
+          persistSession: true,
+          detectSessionInUrl: false,
+        },
+      });
+
+      this.supabase.auth.onAuthStateChange((event, session) => {
+        console.log('[Auth] State changed:', event);
+        if (session?.user) {
+          this.currentUser = {
+            id: session.user.id,
+            email: session.user.email || '',
+            access_token: session.access_token,
+            refresh_token: session.refresh_token,
+          };
+        } else {
+          this.currentUser = null;
+        }
+        this.notifyListeners();
+      });
+    }
+
+    await this.loadStoredUser();
+  }
+
+  private async loadStoredUser() {
     try {
-      const storedUser = await AsyncStorage.getItem(AUTH_USER_KEY);
-      if (storedUser) {
-        this.currentUser = JSON.parse(storedUser);
+      const stored = await AsyncStorage.getItem(AUTH_USER_KEY);
+      if (stored) {
+        this.currentUser = JSON.parse(stored);
         this.notifyListeners();
       }
     } catch (e) {
-      console.log('[Auth] No stored session');
+      console.log('[Auth] Failed to load stored user:', e);
     }
   }
 
   private notifyListeners() {
-    this.sessionListeners.forEach(listener => {
-      try {
-        listener(this.currentUser);
-      } catch (e) {
-        // Ignore listener errors
-      }
-    });
+    this.listeners.forEach(listener => listener(this.currentUser));
   }
 
-  onAuthStateChange(callback: (user: AuthUser | null) => void): { unsubscribe: () => void } {
-    this.sessionListeners.push(callback);
-    // Immediately call with current state
-    setTimeout(() => callback(this.currentUser), 0);
-    return {
-      unsubscribe: () => {
-        this.sessionListeners = this.sessionListeners.filter(l => l !== callback);
-      }
+  onAuthStateChange(callback: AuthListener): () => void {
+    this.listeners.push(callback);
+    callback(this.currentUser);
+    return () => {
+      this.listeners = this.listeners.filter(l => l !== callback);
     };
   }
 
-  async getSession(): Promise<{ session: AuthUser | null }> {
-    if (!this.currentUser) {
-      await this.loadStoredSession();
-    }
-    return { session: this.currentUser };
+  getCurrentUser(): AuthUser | null {
+    return this.currentUser;
+  }
+
+  getClient(): SupabaseClientType | null {
+    return this.supabase;
   }
 
   async signUp(credentials: { email: string; password: string }): Promise<AuthResponse> {
-    if (!supabaseUrl || !supabaseKey) {
+    if (!this.supabase) {
       return { data: null, error: { message: 'Supabase not configured' } };
     }
 
     try {
-      console.log('[Auth] Attempting sign up with axios...');
+      Alert.alert('SignUp', 'Creating account...');
       
-      const response = await axios({
-        method: 'POST',
-        url: `${supabaseUrl}/auth/v1/signup`,
-        headers: {
-          'apikey': supabaseKey,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        data: {
-          email: credentials.email,
-          password: credentials.password,
-        },
-        timeout: 30000,
+      const { data, error } = await this.supabase.auth.signUp({
+        email: credentials.email.trim(),
+        password: credentials.password,
       });
 
-      console.log('[Auth] Sign up response:', response.status);
-      return { data: { user: null, session: null }, error: null };
-      
-    } catch (error: any) {
-      console.log('[Auth] Sign up error:', error);
-      
-      if (axios.isAxiosError(error)) {
-        const message = error.response?.data?.error_description 
-          || error.response?.data?.msg
-          || error.response?.data?.message 
-          || error.message;
-        return { data: null, error: { message } };
+      if (error) {
+        Alert.alert('SignUp Failed', error.message);
+        return { data: null, error: { message: error.message } };
       }
-      
-      return { data: null, error: { message: error?.message || 'Network error' } };
+
+      Alert.alert('SignUp Success', 'Account created!');
+      return { data: { user: null, session: null }, error: null };
+    } catch (e: any) {
+      Alert.alert('SignUp Exception', e?.message || 'Unknown error');
+      return { data: null, error: { message: e?.message || 'Unknown error' } };
     }
   }
 
   async signIn(credentials: { email: string; password: string }): Promise<AuthResponse> {
-    const { Alert } = require('react-native');
-    
-    Alert.alert('SignIn Called', 'Starting axios request...');
-    
-    if (!supabaseUrl || !supabaseKey) {
+    if (!this.supabase) {
       Alert.alert('Config Error', 'Supabase not configured');
       return { data: null, error: { message: 'Supabase not configured' } };
     }
 
     try {
-      Alert.alert('Making Request', `URL: ${supabaseUrl?.substring(0, 30)}...`);
+      Alert.alert('SignIn', `Logging in as ${credentials.email}...`);
       
-      const response = await axios({
-        method: 'POST',
-        url: `${supabaseUrl}/auth/v1/token?grant_type=password`,
-        headers: {
-          'apikey': supabaseKey,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        data: {
-          email: credentials.email.trim(),
-          password: credentials.password,
-        },
-        timeout: 30000,
+      const { data, error } = await this.supabase.auth.signInWithPassword({
+        email: credentials.email.trim(),
+        password: credentials.password,
       });
 
-      Alert.alert('Request Success', `Status: ${response.status}`);
-      
-      const session = response.data;
-      const user: AuthUser = {
-        id: session.user?.id || '',
-        email: credentials.email,
-        access_token: session.access_token,
-        refresh_token: session.refresh_token,
-      };
-
-      await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
-      this.currentUser = user;
-      this.notifyListeners();
-
-      return { data: { user, session: user }, error: null };
-      
-    } catch (error: any) {
-      let errorMsg = 'Unknown error';
-      
-      if (axios.isAxiosError(error)) {
-        errorMsg = error.response?.data?.error_description 
-          || error.response?.data?.msg
-          || error.response?.data?.message 
-          || error.message;
-      } else {
-        errorMsg = error?.message || 'Network error';
+      if (error) {
+        Alert.alert('Login Failed', error.message);
+        return { data: null, error: { message: error.message } };
       }
-      
-      Alert.alert('Request Failed', errorMsg);
-      return { data: null, error: { message: errorMsg } };
+
+      if (data.session) {
+        const user: AuthUser = {
+          id: data.user?.id || '',
+          email: credentials.email,
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        };
+
+        await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+        this.currentUser = user;
+        this.notifyListeners();
+
+        Alert.alert('Success!', 'Logged in successfully');
+        return { data: { user, session: user }, error: null };
+      }
+
+      return { data: null, error: { message: 'No session returned' } };
+    } catch (e: any) {
+      Alert.alert('Login Exception', e?.message || 'Unknown error');
+      return { data: null, error: { message: e?.message || 'Unknown error' } };
     }
   }
 
   async signOut(): Promise<{ error: { message: string } | null }> {
     try {
+      if (this.supabase) {
+        await this.supabase.auth.signOut();
+      }
       await AsyncStorage.removeItem(AUTH_USER_KEY);
       this.currentUser = null;
       this.notifyListeners();
@@ -182,21 +178,21 @@ class SupabaseClientService {
     }
   }
 
-  // Compatibility getter for code that expects .client.auth pattern
-  get client() {
-    return {
-      auth: {
-        getSession: () => this.getSession().then(r => ({ data: r })),
-        onAuthStateChange: (callback: (event: string, session: AuthUser | null) => void) => {
-          const sub = this.onAuthStateChange((user) => callback('SIGNED_IN', user));
-          return { data: { subscription: sub } };
-        },
-        signUp: (creds: any) => this.signUp(creds),
-        signInWithPassword: (creds: any) => this.signIn(creds),
-        signOut: () => this.signOut(),
+  async refreshSession(): Promise<void> {
+    if (this.supabase) {
+      const { data } = await this.supabase.auth.refreshSession();
+      if (data.session) {
+        this.currentUser = {
+          id: data.user?.id || '',
+          email: data.user?.email || '',
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        };
+        await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(this.currentUser));
+        this.notifyListeners();
       }
-    };
+    }
   }
 }
 
-export const SupabaseClient = new SupabaseClientService();
+export const SupabaseClient = new SupabaseClientWrapper();
