@@ -1,12 +1,12 @@
 // src/data/data_sources/supabase_client.ts
-// Direct REST API auth to avoid Hermes event emitter issues
+// Using axios for reliable Android/Hermes networking
 
+import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
-const AUTH_TOKEN_KEY = '@stationscout_auth_token';
 const AUTH_USER_KEY = '@stationscout_auth_user';
 
 export interface AuthUser {
@@ -75,29 +75,38 @@ class SupabaseClientService {
     }
 
     try {
-      const response = await fetch(`${supabaseUrl}/auth/v1/signup`, {
+      console.log('[Auth] Attempting sign up with axios...');
+      
+      const response = await axios({
         method: 'POST',
+        url: `${supabaseUrl}/auth/v1/signup`,
         headers: {
           'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`,
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: JSON.stringify({
+        data: {
           email: credentials.email,
           password: credentials.password,
-        }),
+        },
+        timeout: 30000,
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        return { data: null, error: { message: data.error_description || data.msg || 'Sign up failed' } };
-      }
-
+      console.log('[Auth] Sign up response:', response.status);
       return { data: { user: null, session: null }, error: null };
-    } catch (e: any) {
-      return { data: null, error: { message: e?.message || 'Network error' } };
+      
+    } catch (error: any) {
+      console.log('[Auth] Sign up error:', error);
+      
+      if (axios.isAxiosError(error)) {
+        const message = error.response?.data?.error_description 
+          || error.response?.data?.msg
+          || error.response?.data?.message 
+          || error.message;
+        return { data: null, error: { message } };
+      }
+      
+      return { data: null, error: { message: error?.message || 'Network error' } };
     }
   }
 
@@ -107,53 +116,59 @@ class SupabaseClientService {
     }
 
     try {
-      const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+      console.log('[Auth] Attempting sign in with axios...');
+      console.log('[Auth] URL:', `${supabaseUrl}/auth/v1/token?grant_type=password`);
+      
+      const response = await axios({
         method: 'POST',
+        url: `${supabaseUrl}/auth/v1/token?grant_type=password`,
         headers: {
           'apikey': supabaseKey,
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
-        body: JSON.stringify({
-          email: credentials.email,
+        data: {
+          email: credentials.email.trim(),
           password: credentials.password,
-        }),
+        },
+        timeout: 30000,
       });
 
-      const responseText = await response.text();
+      console.log('[Auth] Sign in success, status:', response.status);
       
-      if (!response.ok) {
-        let errorMsg = 'Sign in failed';
-        try {
-          const errorData = JSON.parse(responseText);
-          errorMsg = errorData.error_description || errorData.msg || errorData.message || errorMsg;
-        } catch {
-          errorMsg = responseText || `HTTP ${response.status}`;
-        }
-        return { data: null, error: { message: errorMsg } };
-      }
-
-      const data = JSON.parse(responseText);
+      const session = response.data;
       const user: AuthUser = {
-        id: data.user?.id || '',
+        id: session.user?.id || '',
         email: credentials.email,
-        access_token: data.access_token,
-        refresh_token: data.refresh_token,
+        access_token: session.access_token,
+        refresh_token: session.refresh_token,
       };
 
       await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
       this.currentUser = user;
       this.notifyListeners();
-      
+
       return { data: { user, session: user }, error: null };
-    } catch (e: any) {
-      return { data: null, error: { message: e?.message || 'Network error' } };
+      
+    } catch (error: any) {
+      console.log('[Auth] Sign in error:', error);
+      console.log('[Auth] Error response:', error.response?.data);
+      
+      if (axios.isAxiosError(error)) {
+        const message = error.response?.data?.error_description 
+          || error.response?.data?.msg
+          || error.response?.data?.message 
+          || error.message;
+        return { data: null, error: { message } };
+      }
+      
+      return { data: null, error: { message: error?.message || 'Network error' } };
     }
   }
 
   async signOut(): Promise<{ error: { message: string } | null }> {
     try {
       await AsyncStorage.removeItem(AUTH_USER_KEY);
-      await AsyncStorage.removeItem(AUTH_TOKEN_KEY);
       this.currentUser = null;
       this.notifyListeners();
       return { error: null };

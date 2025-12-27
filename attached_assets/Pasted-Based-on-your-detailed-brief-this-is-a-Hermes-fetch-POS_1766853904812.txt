@@ -1,0 +1,178 @@
+Based on your detailed brief, this is a Hermes + fetch POST issue on Android. Since GET requests work (data sync) but POST to /auth/v1/token fails, let's try these targeted fixes:
+
+Fix 1: Use Axios Instead of Fetch
+Axios handles Android/Hermes networking more reliably:
+
+bash
+npx expo install axios
+
+typescript
+// src/data/data_sources/supabase_client.ts
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+
+export class SupabaseClientService {
+  async signIn(email: string, password: string) {
+    console.log('[Auth] Attempting sign in with axios...');
+    
+    try {
+      const response = await axios({
+        method: 'POST',
+        url: `${SUPABASE_URL}/auth/v1/token?grant_type=password`,
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        data: {
+          email: email.trim(),
+          password: password,
+        },
+        timeout: 30000,
+      });
+
+      console.log('[Auth] Success:', response.status);
+      
+      const session = response.data;
+      await AsyncStorage.setItem('supabase_session', JSON.stringify(session));
+      
+      return { data: { session }, error: null };
+      
+    } catch (error) {
+      console.log('[Auth] Axios error:', error);
+      
+      if (axios.isAxiosError(error)) {
+        const message = error.response?.data?.error_description 
+          || error.response?.data?.message 
+          || error.message;
+        return { data: null, error: { message } };
+      }
+      
+      return { data: null, error: { message: 'Network request failed' } };
+    }
+  }
+}
+
+Fix 2: If Axios Doesn't Work, Try XMLHttpRequest with Promise Wrapper
+typescript
+async signIn(email: string, password: string): Promise<AuthResponse> {
+  console.log('[Auth] Using XMLHttpRequest...');
+  
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    const url = `${SUPABASE_URL}/auth/v1/token?grant_type=password`;
+    
+    xhr.open('POST', url, true);
+    xhr.setRequestHeader('apikey', SUPABASE_ANON_KEY);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.setRequestHeader('Accept', 'application/json');
+    xhr.timeout = 30000;
+    
+    xhr.onload = async () => {
+      console.log('[Auth] XHR status:', xhr.status);
+      console.log('[Auth] XHR response:', xhr.responseText);
+      
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const session = JSON.parse(xhr.responseText);
+          await AsyncStorage.setItem('supabase_session', JSON.stringify(session));
+          resolve({ data: { session }, error: null });
+        } catch (e) {
+          resolve({ data: null, error: { message: 'Failed to parse response' } });
+        }
+      } else {
+        let errorMessage = 'Authentication failed';
+        try {
+          const errorData = JSON.parse(xhr.responseText);
+          errorMessage = errorData.error_description || errorData.message || errorMessage;
+        } catch (e) {}
+        resolve({ data: null, error: { message: errorMessage } });
+      }
+    };
+    
+    xhr.onerror = () => {
+      console.log('[Auth] XHR network error');
+      resolve({ data: null, error: { message: 'Network error - request failed to send' } });
+    };
+    
+    xhr.ontimeout = () => {
+      console.log('[Auth] XHR timeout');
+      resolve({ data: null, error: { message: 'Request timed out' } });
+    };
+    
+    const body = JSON.stringify({ email: email.trim(), password });
+    console.log('[Auth] Sending body:', body);
+    xhr.send(body);
+  });
+}
+
+Fix 3: Check for Missing Network Permission
+Verify app.json has:
+
+json
+{
+  "expo": {
+    "android": {
+      "permissions": ["INTERNET", "ACCESS_NETWORK_STATE"]
+    }
+  }
+}
+
+Fix 4: Add Network Security Config (if targeting newer Android)
+Create android/app/src/main/res/xml/network_security_config.xml:
+
+xml
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">supabase.co</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+</network-security-config>
+
+Since you're using Expo managed workflow, add to app.json:
+
+json
+{
+  "expo": {
+    "android": {
+      "usesCleartextTraffic": false
+    }
+  }
+}
+
+Diagnostic: Add This to LoginScreen to See Raw Error
+typescript
+const handleLogin = async () => {
+  console.log('[Login] ========== STARTING ==========');
+  
+  try {
+    const result = await supabaseClient.signIn(email, password);
+    
+    console.log('[Login] Full result:', JSON.stringify(result, null, 2));
+    
+    if (result.error) {
+      Alert.alert('Login Failed', result.error.message || 'Unknown error');
+      return;
+    }
+    
+    if (result.data?.session) {
+      Alert.alert('Success!', 'Logged in successfully');
+      // Navigate to home
+    }
+  } catch (e) {
+    console.log('[Login] Caught exception:', e);
+    Alert.alert('Exception', String(e));
+  }
+};
+
+Recommended Action Order
+Try Axios first - most likely to work
+Check logs with adb logcat | grep -i auth
+If Axios fails, try XMLHttpRequest version
+If both fail, use Flipper Network plugin to see if request leaves device

@@ -33,18 +33,7 @@ export default function LoginScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    Alert.alert('Login', 'Signing in...');
-    
-    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-    
-    if (!supabaseUrl || !supabaseKey) {
-      Alert.alert(
-        'Configuration Error',
-        `URL: ${supabaseUrl ? 'OK' : 'MISSING'}\nKey: ${supabaseKey ? 'OK' : 'MISSING'}`
-      );
-      return;
-    }
+    console.log('[Login] ========== STARTING ==========');
     
     if (!email || !password) {
       Alert.alert('Error', 'Please fill in all fields');
@@ -56,40 +45,31 @@ export default function LoginScreen({ navigation }: Props) {
     try {
       console.log('[Login] Calling signIn for:', email.trim());
       
-      const { data, error } = await SupabaseClient.signIn({
+      const result = await SupabaseClient.signIn({
         email: email.trim(),
         password,
       });
       
-      setLoading(false);
-      console.log('[Login] signIn returned - data:', !!data, 'error:', !!error);
+      console.log('[Login] Full result:', JSON.stringify(result, null, 2));
       
-      if (error) {
-        console.log('[Login] Error message:', error.message);
-        Alert.alert('Login Failed', error.message || 'Unknown error occurred');
+      setLoading(false);
+      
+      if (result.error) {
+        Alert.alert('Login Failed', result.error.message || 'Unknown error');
         return;
       }
       
-      if (data?.session) {
-        console.log('[Login] Success - session created');
+      if (result.data?.session) {
+        Alert.alert('Success!', 'Logged in successfully');
         // Navigation will happen automatically via auth state change
         return;
       }
       
-      // Double-check session
-      await new Promise(resolve => setTimeout(resolve, 500));
-      const { session } = await SupabaseClient.getSession();
-      
-      if (session) {
-        console.log('[Login] Session found on recheck');
-        return;
-      }
-      
-      Alert.alert('Login Issue', 'Authentication succeeded but no session was created. Please try again.');
+      Alert.alert('Login Issue', 'No session was created. Please try again.');
     } catch (e: any) {
       setLoading(false);
-      console.log('[Login] Exception:', e?.message);
-      Alert.alert('Error', e?.message || 'An unexpected error occurred');
+      console.log('[Login] Caught exception:', e);
+      Alert.alert('Exception', String(e));
     }
   };
 
