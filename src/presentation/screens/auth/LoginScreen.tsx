@@ -33,7 +33,7 @@ export default function LoginScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    console.log('[Login] Button pressed');
+    Alert.alert('Login', 'Signing in...');
     
     const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
