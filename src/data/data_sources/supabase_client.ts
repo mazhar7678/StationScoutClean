@@ -111,13 +111,17 @@ class SupabaseClientService {
   }
 
   async signIn(credentials: { email: string; password: string }): Promise<AuthResponse> {
+    const { Alert } = require('react-native');
+    
+    Alert.alert('SignIn Called', 'Starting axios request...');
+    
     if (!supabaseUrl || !supabaseKey) {
+      Alert.alert('Config Error', 'Supabase not configured');
       return { data: null, error: { message: 'Supabase not configured' } };
     }
 
     try {
-      console.log('[Auth] Attempting sign in with axios...');
-      console.log('[Auth] URL:', `${supabaseUrl}/auth/v1/token?grant_type=password`);
+      Alert.alert('Making Request', `URL: ${supabaseUrl?.substring(0, 30)}...`);
       
       const response = await axios({
         method: 'POST',
@@ -134,7 +138,7 @@ class SupabaseClientService {
         timeout: 30000,
       });
 
-      console.log('[Auth] Sign in success, status:', response.status);
+      Alert.alert('Request Success', `Status: ${response.status}`);
       
       const session = response.data;
       const user: AuthUser = {
@@ -151,18 +155,19 @@ class SupabaseClientService {
       return { data: { user, session: user }, error: null };
       
     } catch (error: any) {
-      console.log('[Auth] Sign in error:', error);
-      console.log('[Auth] Error response:', error.response?.data);
+      let errorMsg = 'Unknown error';
       
       if (axios.isAxiosError(error)) {
-        const message = error.response?.data?.error_description 
+        errorMsg = error.response?.data?.error_description 
           || error.response?.data?.msg
           || error.response?.data?.message 
           || error.message;
-        return { data: null, error: { message } };
+      } else {
+        errorMsg = error?.message || 'Network error';
       }
       
-      return { data: null, error: { message: error?.message || 'Network error' } };
+      Alert.alert('Request Failed', errorMsg);
+      return { data: null, error: { message: errorMsg } };
     }
   }
 

@@ -33,7 +33,8 @@ export default function LoginScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    console.log('[Login] ========== STARTING ==========');
+    // IMMEDIATE test - does button work?
+    Alert.alert('Button Works', 'Login button pressed!');
     
     if (!email || !password) {
       Alert.alert('Error', 'Please fill in all fields');
@@ -43,14 +44,10 @@ export default function LoginScreen({ navigation }: Props) {
     setLoading(true);
     
     try {
-      console.log('[Login] Calling signIn for:', email.trim());
-      
       const result = await SupabaseClient.signIn({
         email: email.trim(),
         password,
       });
-      
-      console.log('[Login] Full result:', JSON.stringify(result, null, 2));
       
       setLoading(false);
       
@@ -61,14 +58,12 @@ export default function LoginScreen({ navigation }: Props) {
       
       if (result.data?.session) {
         Alert.alert('Success!', 'Logged in successfully');
-        // Navigation will happen automatically via auth state change
         return;
       }
       
       Alert.alert('Login Issue', 'No session was created. Please try again.');
     } catch (e: any) {
       setLoading(false);
-      console.log('[Login] Caught exception:', e);
       Alert.alert('Exception', String(e));
     }
   };
