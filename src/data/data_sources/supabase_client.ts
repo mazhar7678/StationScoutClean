@@ -102,101 +102,52 @@ class SupabaseClientService {
   }
 
   async signIn(credentials: { email: string; password: string }): Promise<AuthResponse> {
-    console.log('[SupabaseClient] signIn called');
-    console.log('[SupabaseClient] URL configured:', !!supabaseUrl);
-    console.log('[SupabaseClient] Key configured:', !!supabaseKey);
-    
     if (!supabaseUrl || !supabaseKey) {
-      console.log('[SupabaseClient] ERROR: Supabase not configured');
       return { data: null, error: { message: 'Supabase not configured' } };
     }
 
-    console.log('[SupabaseClient] Making request to:', `${supabaseUrl}/auth/v1/token?grant_type=password`);
-
-    // Use XMLHttpRequest instead of fetch to avoid Hermes event emitter issues
-    return new Promise((resolve) => {
-      try {
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', `${supabaseUrl}/auth/v1/token?grant_type=password`, true);
-        xhr.setRequestHeader('apikey', supabaseKey);
-        xhr.setRequestHeader('Authorization', `Bearer ${supabaseKey}`);
-        xhr.setRequestHeader('Content-Type', 'application/json');
-        xhr.setRequestHeader('Accept', 'application/json');
-        
-        console.log('[SupabaseClient] XHR created and configured');
-        
-        xhr.onreadystatechange = async () => {
-          console.log('[SupabaseClient] XHR state changed:', xhr.readyState);
-          if (xhr.readyState === 4) {
-            console.log('[SupabaseClient] XHR complete, status:', xhr.status);
-            try {
-              if (xhr.status >= 200 && xhr.status < 300) {
-                console.log('[SupabaseClient] Login successful, parsing response...');
-                const data = JSON.parse(xhr.responseText);
-                const user: AuthUser = {
-                  id: data.user?.id || '',
-                  email: credentials.email,
-                  access_token: data.access_token,
-                  refresh_token: data.refresh_token,
-                };
-
-                await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
-                this.currentUser = user;
-                this.notifyListeners();
-                resolve({ data: { user, session: user }, error: null });
-              } else {
-                console.log('[SupabaseClient] Login failed with status:', xhr.status);
-                console.log('[SupabaseClient] Response:', xhr.responseText);
-                let errorMsg = 'Sign in failed';
-                try {
-                  const errorData = JSON.parse(xhr.responseText);
-                  errorMsg = errorData.error_description || errorData.error || errorData.msg || errorData.message || `HTTP ${xhr.status}`;
-                  console.log('[SupabaseClient] Parsed error:', errorMsg);
-                } catch (parseErr) {
-                  errorMsg = xhr.responseText || `HTTP ${xhr.status} error`;
-                  console.log('[SupabaseClient] Could not parse error, using raw:', errorMsg);
-                }
-                resolve({ data: null, error: { message: errorMsg } });
-              }
-            } catch (parseError: any) {
-              // Suppress Hermes errors during JSON parsing
-              if (parseError?.message?.includes('NONE')) {
-                // Try to check if login succeeded anyway
-                setTimeout(async () => {
-                  try {
-                    const stored = await AsyncStorage.getItem(AUTH_USER_KEY);
-                    if (stored) {
-                      const user = JSON.parse(stored);
-                      this.currentUser = user;
-                      this.notifyListeners();
-                      resolve({ data: { user, session: user }, error: null });
-                      return;
-                    }
-                  } catch {}
-                  resolve({ data: null, error: { message: 'Login failed. Please try again.' } });
-                }, 500);
-              } else {
-                resolve({ data: null, error: { message: parseError?.message || 'Network error' } });
-              }
-            }
-          }
-        };
-
-        xhr.onerror = () => {
-          console.log('[SupabaseClient] XHR network error');
-          resolve({ data: null, error: { message: 'Network error. Please check your connection.' } });
-        };
-
-        console.log('[SupabaseClient] Sending XHR request...');
-        xhr.send(JSON.stringify({
+    try {
+      const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+        method: 'POST',
+        headers: {
+          'apikey': supabaseKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           email: credentials.email,
           password: credentials.password,
-        }));
-        console.log('[SupabaseClient] XHR request sent');
-      } catch (e: any) {
-        resolve({ data: null, error: { message: e?.message || 'Request failed' } });
+        }),
+      });
+
+      const responseText = await response.text();
+      
+      if (!response.ok) {
+        let errorMsg = 'Sign in failed';
+        try {
+          const errorData = JSON.parse(responseText);
+          errorMsg = errorData.error_description || errorData.msg || errorData.message || errorMsg;
+        } catch {
+          errorMsg = responseText || `HTTP ${response.status}`;
+        }
+        return { data: null, error: { message: errorMsg } };
       }
-    });
+
+      const data = JSON.parse(responseText);
+      const user: AuthUser = {
+        id: data.user?.id || '',
+        email: credentials.email,
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+      };
+
+      await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+      this.currentUser = user;
+      this.notifyListeners();
+      
+      return { data: { user, session: user }, error: null };
+    } catch (e: any) {
+      return { data: null, error: { message: e?.message || 'Network error' } };
+    }
   }
 
   async signOut(): Promise<{ error: { message: string } | null }> {
