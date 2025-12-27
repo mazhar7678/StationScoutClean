@@ -33,16 +33,15 @@ export default function LoginScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    console.log('[Login] === BUTTON PRESSED ===');
-    Alert.alert('Button Pressed', 'Login button was tapped!');
+    Alert.alert('Step 1', 'Button pressed, starting login...');
     
     const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
     
     if (!supabaseUrl || !supabaseKey) {
       Alert.alert(
-        'Configuration Error',
-        `Supabase not configured.\nURL: ${supabaseUrl ? 'Set' : 'MISSING'}\nKey: ${supabaseKey ? 'Set' : 'MISSING'}`
+        'Config Error',
+        `URL: ${supabaseUrl ? 'OK' : 'MISSING'}\nKey: ${supabaseKey ? 'OK' : 'MISSING'}`
       );
       return;
     }
@@ -52,7 +51,7 @@ export default function LoginScreen({ navigation }: Props) {
       return;
     }
 
-    console.log('[Login] Starting login...');
+    Alert.alert('Step 2', `Attempting login for: ${email}`);
     setLoading(true);
     
     try {
@@ -61,35 +60,31 @@ export default function LoginScreen({ navigation }: Props) {
         password,
       });
       
-      console.log('[Login] Result:', { hasData: !!data, hasError: !!error, errorMsg: error?.message });
+      setLoading(false);
       
       if (error) {
-        setLoading(false);
-        Alert.alert('Login Failed', error.message || 'Authentication failed');
+        Alert.alert('Login Failed', `Error: ${error.message}`);
         return;
       }
       
       if (data?.session) {
-        console.log('[Login] Login successful!');
-        setLoading(false);
+        Alert.alert('Success!', 'Login successful! You should be redirected now.');
         return;
       }
       
+      Alert.alert('Step 3', 'Checking session...');
       await new Promise(resolve => setTimeout(resolve, 500));
       const { session } = await SupabaseClient.getSession();
       
       if (session) {
-        console.log('[Login] Session found!');
-        setLoading(false);
+        Alert.alert('Success!', 'Session found! You should be redirected now.');
         return;
       }
       
-      setLoading(false);
-      Alert.alert('Login Failed', 'Could not establish session. Please try again.');
+      Alert.alert('Failed', 'No session was created. Please try again.');
     } catch (e: any) {
-      console.log('[Login] Exception:', e?.message);
       setLoading(false);
-      Alert.alert('Login Error', e?.message || 'An unexpected error occurred');
+      Alert.alert('Exception', `Error: ${e?.message || 'Unknown error'}`);
     }
   };
 
