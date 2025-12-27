@@ -79,7 +79,9 @@ class SupabaseClientService {
         method: 'POST',
         headers: {
           'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
         body: JSON.stringify({
           email: credentials.email,
@@ -117,7 +119,9 @@ class SupabaseClientService {
         const xhr = new XMLHttpRequest();
         xhr.open('POST', `${supabaseUrl}/auth/v1/token?grant_type=password`, true);
         xhr.setRequestHeader('apikey', supabaseKey);
+        xhr.setRequestHeader('Authorization', `Bearer ${supabaseKey}`);
         xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.setRequestHeader('Accept', 'application/json');
         
         console.log('[SupabaseClient] XHR created and configured');
         
