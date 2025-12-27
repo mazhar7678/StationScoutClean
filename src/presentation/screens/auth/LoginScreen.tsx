@@ -6,11 +6,8 @@ import {
   Platform, 
   KeyboardAvoidingView, 
   ScrollView, 
-  ActivityIndicator,
-  TouchableOpacity,
-  Text as RNText,
 } from 'react-native';
-import { Text, TextInput } from 'react-native-paper';
+import { Text, TextInput, Button } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { SupabaseClient } from '../../../data/data_sources/supabase_client';
@@ -143,11 +140,11 @@ export default function LoginScreen({ navigation }: Props) {
           <Text style={styles.tagline}>Discover events along your railway journey</Text>
         </View>
 
-        <View style={[styles.formContainer, { pointerEvents: 'box-none' }]}>
+        <View style={styles.formContainer}>
           <Text style={styles.welcomeText}>Welcome back</Text>
           <Text style={styles.signInText}>Sign in to continue</Text>
 
-          <View style={[styles.inputContainer, { pointerEvents: 'box-none' }]}>
+          <View style={styles.inputContainer}>
             <MaterialCommunityIcons 
               name="email-outline" 
               size={20} 
@@ -168,7 +165,7 @@ export default function LoginScreen({ navigation }: Props) {
             />
           </View>
 
-          <View style={[styles.inputContainer, { pointerEvents: 'box-none' }]}>
+          <View style={styles.inputContainer}>
             <MaterialCommunityIcons 
               name="lock-outline" 
               size={20} 
@@ -194,21 +191,18 @@ export default function LoginScreen({ navigation }: Props) {
             />
           </View>
 
-          <TouchableOpacity
+          <Button
+            mode="contained"
             onPress={handleLogin}
+            loading={loading}
             disabled={loading}
-            activeOpacity={0.7}
-            style={[
-              styles.primaryButton,
-              loading && styles.buttonDisabled,
-            ]}
+            style={styles.primaryButton}
+            contentStyle={styles.primaryButtonContent}
+            labelStyle={styles.primaryButtonText}
+            buttonColor={colors.primary}
           >
-            {loading ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <RNText style={styles.primaryButtonText}>Sign In</RNText>
-            )}
-          </TouchableOpacity>
+            Sign In
+          </Button>
 
           <View style={styles.divider}>
             <View style={styles.dividerLine} />
@@ -216,17 +210,17 @@ export default function LoginScreen({ navigation }: Props) {
             <View style={styles.dividerLine} />
           </View>
 
-          <TouchableOpacity
+          <Button
+            mode="outlined"
             onPress={handleSignUp}
             disabled={loading}
-            activeOpacity={0.7}
-            style={[
-              styles.secondaryButton,
-              loading && styles.buttonDisabled,
-            ]}
+            style={styles.secondaryButton}
+            contentStyle={styles.secondaryButtonContent}
+            labelStyle={styles.secondaryButtonLabel}
+            textColor={colors.primary}
           >
-            <RNText style={styles.secondaryButtonText}>Create New Account</RNText>
-          </TouchableOpacity>
+            Create New Account
+          </Button>
         </View>
 
         <View style={styles.footer}>
@@ -311,22 +305,14 @@ const styles = StyleSheet.create({
   primaryButton: {
     borderRadius: 12,
     marginTop: 8,
-    backgroundColor: colors.primary,
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+  },
+  primaryButtonContent: {
+    paddingVertical: 8,
     minHeight: 56,
   },
   primaryButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonPressed: {
-    backgroundColor: colors.primaryLight,
   },
   divider: {
     flexDirection: 'row',
@@ -346,20 +332,14 @@ const styles = StyleSheet.create({
   secondaryButton: {
     borderRadius: 12,
     borderColor: colors.border,
-    borderWidth: 1,
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'transparent',
+  },
+  secondaryButtonContent: {
+    paddingVertical: 8,
     minHeight: 56,
   },
-  secondaryButtonText: {
-    color: colors.primary,
+  secondaryButtonLabel: {
     fontSize: 16,
     fontWeight: '600',
-  },
-  secondaryButtonPressed: {
-    backgroundColor: 'rgba(30,58,95,0.05)',
   },
   footer: {
     padding: 24,
