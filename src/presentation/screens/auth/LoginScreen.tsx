@@ -33,9 +33,6 @@ export default function LoginScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    // IMMEDIATE test - does button work?
-    Alert.alert('Button Works', 'Login button pressed!');
-    
     if (!email || !password) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
@@ -51,20 +48,25 @@ export default function LoginScreen({ navigation }: Props) {
       
       setLoading(false);
       
+      // Show exactly what we got back for debugging
       if (result.error) {
         Alert.alert('Login Failed', result.error.message || 'Unknown error');
         return;
       }
       
       if (result.data?.session) {
-        Alert.alert('Success!', 'Logged in successfully');
+        // Navigation happens automatically via AppNavigator's auth state listener
+        // No need to navigate manually - just show success
+        Alert.alert('Success', 'Logged in! App will navigate automatically.');
         return;
       }
       
-      Alert.alert('Login Issue', 'No session was created. Please try again.');
+      // Show the raw result for debugging
+      Alert.alert('Unexpected Response', JSON.stringify(result).substring(0, 200));
     } catch (e: any) {
       setLoading(false);
-      Alert.alert('Exception', String(e));
+      const errMsg = e?.message || String(e);
+      Alert.alert('Login Error', errMsg.substring(0, 200));
     }
   };
 
