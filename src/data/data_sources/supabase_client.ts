@@ -1,6 +1,5 @@
 import { createClient, SupabaseClient as SupabaseClientType } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Alert } from 'react-native';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -80,16 +79,23 @@ class SupabaseClientWrapper {
     this.listeners.forEach(listener => listener(this.currentUser));
   }
 
-  onAuthStateChange(callback: AuthListener): () => void {
+  onAuthStateChange(callback: AuthListener): { unsubscribe: () => void } {
     this.listeners.push(callback);
     callback(this.currentUser);
-    return () => {
-      this.listeners = this.listeners.filter(l => l !== callback);
+    return {
+      unsubscribe: () => {
+        this.listeners = this.listeners.filter(l => l !== callback);
+      }
     };
   }
 
   getCurrentUser(): AuthUser | null {
     return this.currentUser;
+  }
+
+  async getSession(): Promise<{ session: AuthUser | null }> {
+    await this.initialize();
+    return { session: this.currentUser };
   }
 
   getClient(): SupabaseClientType | null {
@@ -102,7 +108,7 @@ class SupabaseClientWrapper {
     }
 
     try {
-      Alert.alert('SignUp', 'Creating account...');
+      console.log('[Auth] SignUp: Creating account...');
       
       const { data, error } = await this.supabase.auth.signUp({
         email: credentials.email.trim(),
@@ -110,26 +116,26 @@ class SupabaseClientWrapper {
       });
 
       if (error) {
-        Alert.alert('SignUp Failed', error.message);
+        console.log('[Auth] SignUp Failed:', error.message);
         return { data: null, error: { message: error.message } };
       }
 
-      Alert.alert('SignUp Success', 'Account created!');
+      console.log('[Auth] SignUp Success: Account created!');
       return { data: { user: null, session: null }, error: null };
     } catch (e: any) {
-      Alert.alert('SignUp Exception', e?.message || 'Unknown error');
+      console.log('[Auth] SignUp Exception:', e?.message);
       return { data: null, error: { message: e?.message || 'Unknown error' } };
     }
   }
 
   async signIn(credentials: { email: string; password: string }): Promise<AuthResponse> {
     if (!this.supabase) {
-      Alert.alert('Config Error', 'Supabase not configured');
+      console.log('[Auth] Config Error: Supabase not configured');
       return { data: null, error: { message: 'Supabase not configured' } };
     }
 
     try {
-      Alert.alert('SignIn', `Logging in as ${credentials.email}...`);
+      console.log('[Auth] SignIn: Logging in as', credentials.email);
       
       const { data, error } = await this.supabase.auth.signInWithPassword({
         email: credentials.email.trim(),
@@ -137,7 +143,7 @@ class SupabaseClientWrapper {
       });
 
       if (error) {
-        Alert.alert('Login Failed', error.message);
+        console.log('[Auth] Login Failed:', error.message);
         return { data: null, error: { message: error.message } };
       }
 
@@ -153,13 +159,13 @@ class SupabaseClientWrapper {
         this.currentUser = user;
         this.notifyListeners();
 
-        Alert.alert('Success!', 'Logged in successfully');
+        console.log('[Auth] Success: Logged in successfully');
         return { data: { user, session: user }, error: null };
       }
 
       return { data: null, error: { message: 'No session returned' } };
     } catch (e: any) {
-      Alert.alert('Login Exception', e?.message || 'Unknown error');
+      console.log('[Auth] Login Exception:', e?.message);
       return { data: null, error: { message: e?.message || 'Unknown error' } };
     }
   }
