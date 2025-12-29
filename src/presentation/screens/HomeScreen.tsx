@@ -3,7 +3,7 @@ import { StyleSheet, View, ScrollView, Pressable, Platform } from 'react-native'
 import { Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-import { SupabaseClient } from '../../data/data_sources/supabase_client';
+import { signOut } from '../../data/data_sources/supabase_client';
 import { colors, spacing, borderRadius } from '../theme/colors';
 
 export default function HomeScreen({ navigation }: { navigation: any }) {
@@ -24,7 +24,7 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
               </Pressable>
               <Pressable 
                 style={styles.headerButton} 
-                onPress={() => SupabaseClient.signOut()}
+                onPress={() => signOut()}
               >
                 <MaterialCommunityIcons name="logout" size={24} color="#fff" />
               </Pressable>

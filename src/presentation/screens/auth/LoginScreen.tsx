@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { 
   Alert, 
   StyleSheet, 
@@ -9,7 +9,7 @@ import {
   TextInput as RNTextInput,
 } from 'react-native';
 
-import { SupabaseClient } from '../../../data/data_sources/supabase_client';
+import { signInWithPassword, signUp } from '../../../data/data_sources/supabase_client';
 
 const colors = {
   primary: '#1E3A5F',
@@ -32,46 +32,42 @@ export default function LoginScreen({ navigation }: Props) {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = useCallback(async () => {
-    // First - does this even run?
-    Alert.alert('Step 1', 'Button pressed');
+  const handleLogin = async () => {
+    console.log('[LoginScreen] handleLogin called');
     
     if (!email || !password) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
 
-    Alert.alert('Step 2', 'About to call signIn');
     setLoading(true);
+    console.log('[LoginScreen] Calling signInWithPassword...');
     
     try {
-      const result = await SupabaseClient.signIn({
-        email: email.trim(),
-        password,
-      });
+      const { session, error } = await signInWithPassword(email.trim(), password);
       
-      Alert.alert('Step 3', 'Got result: ' + JSON.stringify(result).substring(0, 100));
+      console.log('[LoginScreen] signInWithPassword returned:', { hasSession: !!session, error });
       setLoading(false);
       
-      if (result.error) {
-        Alert.alert('Login Failed', result.error.message || 'Unknown error');
+      if (error) {
+        Alert.alert('Login Failed', error);
         return;
       }
       
-      if (result.data?.session) {
-        Alert.alert('Success', 'Logged in! App will navigate automatically.');
-        return;
+      if (session) {
+        console.log('[LoginScreen] Login successful, navigation should happen automatically');
+      } else {
+        Alert.alert('Login Issue', 'No session was created. Please try again.');
       }
-      
-      Alert.alert('Unexpected Response', JSON.stringify(result).substring(0, 200));
     } catch (e: any) {
       setLoading(false);
-      Alert.alert('Exception Caught', String(e).substring(0, 200));
+      console.log('[LoginScreen] Exception:', e?.message);
+      Alert.alert('Login Error', e?.message || 'Unknown error');
     }
-  }, [email, password]);
+  };
 
   const handleSignUp = async () => {
-    console.log('[SignUp] Button pressed');
+    console.log('[LoginScreen] handleSignUp called');
     
     if (!email || !password) {
       Alert.alert('Error', 'Please fill in all fields');
@@ -79,16 +75,23 @@ export default function LoginScreen({ navigation }: Props) {
     }
 
     setLoading(true);
-    const { error } = await SupabaseClient.signUp({
-      email: email.trim(),
-      password,
-    });
-    setLoading(false);
-
-    if (error) {
-      Alert.alert('Sign Up Failed', error.message);
-    } else {
-      Alert.alert('Success', 'Account created! Please check your email for a confirmation link.');
+    console.log('[LoginScreen] Calling signUp...');
+    
+    try {
+      const { error } = await signUp(email.trim(), password);
+      
+      console.log('[LoginScreen] signUp returned:', { error });
+      setLoading(false);
+      
+      if (error) {
+        Alert.alert('Sign Up Failed', error);
+      } else {
+        Alert.alert('Success', 'Account created! Please check your email for a confirmation link.');
+      }
+    } catch (e: any) {
+      setLoading(false);
+      console.log('[LoginScreen] Exception:', e?.message);
+      Alert.alert('Sign Up Error', e?.message || 'Unknown error');
     }
   };
 
@@ -123,9 +126,11 @@ export default function LoginScreen({ navigation }: Props) {
 
         <Pressable
           onPress={handleLogin}
+          disabled={loading}
           style={({ pressed }) => [
             styles.primaryButton,
-            pressed && { opacity: 0.7 }
+            pressed && { opacity: 0.7 },
+            loading && { opacity: 0.5 }
           ]}
           android_ripple={{ color: 'rgba(255,255,255,0.3)' }}
         >
@@ -142,9 +147,11 @@ export default function LoginScreen({ navigation }: Props) {
 
         <Pressable
           onPress={handleSignUp}
+          disabled={loading}
           style={({ pressed }) => [
             styles.secondaryButton,
-            pressed && { opacity: 0.7 }
+            pressed && { opacity: 0.7 },
+            loading && { opacity: 0.5 }
           ]}
           android_ripple={{ color: 'rgba(30,58,95,0.1)' }}
         >

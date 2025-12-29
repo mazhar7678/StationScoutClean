@@ -3,8 +3,9 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React, { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { ActivityIndicator } from 'react-native-paper';
+import { Session } from '@supabase/supabase-js';
 
-import { SupabaseClient, AuthUser } from '../../data/data_sources/supabase_client';
+import { getSession, onAuthStateChange } from '../../data/data_sources/supabase_client';
 import LoginScreen from '../screens/auth/LoginScreen';
 import SignUpScreen from '../screens/auth/SignUpScreen';
 import HomeScreen from '../screens/HomeScreen';
@@ -20,23 +21,28 @@ import ErrorBoundary from '../components/ErrorBoundary';
 const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
-  const [session, setSession] = useState<AuthUser | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial session
-    SupabaseClient.getSession().then(({ session }) => {
-      setSession(session);
+    console.log('[AppNavigator] Initializing auth state...');
+    
+    getSession().then((sess) => {
+      console.log('[AppNavigator] Initial session:', sess ? 'logged in' : 'not logged in');
+      setSession(sess);
       setLoading(false);
     });
 
-    // Listen for auth changes
-    const { unsubscribe } = SupabaseClient.onAuthStateChange((user) => {
-      setSession(user);
+    const { unsubscribe } = onAuthStateChange((event, sess) => {
+      console.log('[AppNavigator] Auth state changed:', event, sess ? 'has session' : 'no session');
+      setSession(sess);
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      console.log('[AppNavigator] Cleaning up auth listener');
+      unsubscribe();
+    };
   }, []);
 
   if (loading) {
@@ -46,6 +52,8 @@ export default function AppNavigator() {
       </View>
     );
   }
+
+  console.log('[AppNavigator] Rendering with session:', session ? 'logged in' : 'not logged in');
 
   return (
     <ErrorBoundary>

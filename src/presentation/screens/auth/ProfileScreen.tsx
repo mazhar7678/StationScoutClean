@@ -7,28 +7,29 @@ import {
   SegmentedButtons,
   Text,
 } from 'react-native-paper';
+import { Session } from '@supabase/supabase-js';
 
-import { SupabaseClient, AuthUser } from '../../../data/data_sources/supabase_client';
+import { getSession, onAuthStateChange, signOut } from '../../../data/data_sources/supabase_client';
 
 import LoginScreen from './LoginScreen';
 import SignUpScreen from './SignUpScreen';
 
 const ProfileScreen = () => {
-  const [session, setSession] = useState<AuthUser | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [mode, setMode] = useState<'login' | 'signup'>('login');
 
   useEffect(() => {
     let isMounted = true;
 
-    SupabaseClient.getSession().then(({ session }) => {
+    getSession().then((sess) => {
       if (isMounted) {
-        setSession(session);
+        setSession(sess);
       }
     });
 
-    const { unsubscribe } = SupabaseClient.onAuthStateChange((user) => {
+    const { unsubscribe } = onAuthStateChange((event, sess) => {
       if (isMounted) {
-        setSession(user);
+        setSession(sess);
       }
     });
 
@@ -39,7 +40,7 @@ const ProfileScreen = () => {
   }, []);
 
   const handleLogout = async () => {
-    await SupabaseClient.signOut();
+    await signOut();
     setSession(null);
   };
 
@@ -63,7 +64,7 @@ const ProfileScreen = () => {
     );
   }
 
-  const email = session.email ?? 'Unknown user';
+  const email = session.user?.email ?? 'Unknown user';
 
   return (
     <ScrollView contentContainerStyle={styles.container}>

@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Button, Text, TextInput } from 'react-native-paper';
 
-import { SupabaseClient } from '../../../data/data_sources/supabase_client';
+import { signUp } from '../../../data/data_sources/supabase_client';
 
 const SignUpScreen = () => {
   const [email, setEmail] = useState('');
@@ -14,13 +14,10 @@ const SignUpScreen = () => {
 
   const signUpMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await SupabaseClient.signUp({
-        email,
-        password,
-      });
+      const { error } = await signUp(email, password);
 
       if (error) {
-        throw new Error(error.message);
+        throw new Error(error);
       }
     },
     onError: err => {
