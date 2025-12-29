@@ -148,6 +148,14 @@ npm run build:production
 - Updated eas.json with APK build configuration for development/preview profiles
 - Important: Native testing requires EAS development build (not Expo Go) for SQLite support
 
+### Phase 8: Android Authentication Issue (December 2025) - UNRESOLVED
+- **CRITICAL BLOCKER**: Authentication fails silently on Android due to Hermes JavaScript engine
+- Root cause: Hermes fails to resolve Promises from network operations (fetch/axios)
+- Supabase audit logs confirm requests reach server, but Promise callbacks never fire
+- Attempted solutions: Native SDK, axios+setSession, XMLHttpRequest, JSC engine switch
+- JSC engine caused app crash (WatermelonDB incompatibility)
+- **Full documentation**: See `LOVABLE_HANDOVER_DOCUMENT.md` for complete technical details
+
 ## Supabase Schema Mapping
 - `train_operators` (id, name, code) → local `train_operators`
 - `railway_lines` (id, name, toc_id) → local `railway_lines` (operator_id = toc_id)
