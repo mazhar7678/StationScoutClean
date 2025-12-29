@@ -1,0 +1,123 @@
+```json
+{
+  "root_cause_recap": "Android login reaches Supabase and succeeds server-side, but the app never navigates because a custom axios auth flow bypasses the Supabase SDK session store. The SDK never receives/rehydrates the session, so onAuthStateChange never fires and getSession stays null. Web works because the browser SDK + fetch path is used; Hermes + React Native path is using the custom axios workaround.",
+  "action_plan": [
+    "Harden environment & polyfills (load order, single Supabase client, RN storage).",
+    "Refactor auth to use Supabase SDK (signInWithPassword; remove axios/manual session).",
+    "Ensure single source of truth for session (SDK-managed only).",
+    "Add targeted logging & use adb logcat.",
+    "Rebuild and run on emulator and physical device.",
+    "Execute regression and edge-case test matrix.",
+    "Deliverables + rollback plan."
+  ],
+  "environment_hardening": {
+    "polyfill_order": [
+      "react-native-get-random-values",
+      "react-native-url-polyfill/auto",
+      "buffer (set global.Buffer)"
+    ],
+    "client": "Single Supabase client instance shared app-wide.",
+    "supabase_auth_config": {
+      "storage": "AsyncStorage",
+      "autoRefreshToken": true,
+      "persistSession": true,
+      "detectSessionInUrl": false
+    },
+    "engine": "Hermes enabled (Expo SDK 54 default). Avoid axios for auth; use SDK/fetch."
+  },
+  "code_replacements": [
+    {
+      "file": "index.js",
+      "content": "import { Platform } from 'react-native';\n\n// Polyfills BEFORE any other import\nif (Platform.OS !== 'web') {\n  require('react-native-get-random-values');\n}\nimport 'react-native-url-polyfill/auto';\nimport { Buffer } from 'buffer';\nglobal.Buffer = Buffer;\n\nimport { registerRootComponent } from 'expo';\nimport App from './App';\n\nregisterRootComponent(App);\n"
+    },
+    {
+      "file": "src/data/data_sources/supabase_client.ts",
+      "content": "import AsyncStorage from '@react-native-async-storage/async-storage';\nimport { createClient, SupabaseClient, Session, AuthTokenResponsePassword, AuthChangeEvent } from '@supabase/supabase-js';\nimport { Platform } from 'react-native';\n\nconst SUPABASE_URL = 'https://jjxwwkccvvmglcqgseui.supabase.co';\nconst SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY'; // replace with env\n\nlet supabase: SupabaseClient | null = null;\n\nexport function getSupabaseClient(): SupabaseClient {\n  if (!supabase) {\n    supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {\n      auth: {\n        storage: AsyncStorage,\n        autoRefreshToken: true,\n        persistSession: true,\n        detectSessionInUrl: false,\n      },\n    });\n  }\n  return supabase;\n}\n\nexport async function signInWithPassword(email: string, password: string): Promise<AuthTokenResponsePassword> {\n  const client = getSupabaseClient();\n  const { data, error } = await client.auth.signInWithPassword({ email, password });\n  return { data, error };\n}\n\nexport async function signOut(): Promise<{ error: Error | null }> {\n  const client = getSupabaseClient();\n  const { error } = await client.auth.signOut();\n  return { error };\n}\n\nexport async function getSession(): Promise<{ data: { session: Session | null }, error: Error | null }> {\n  const client = getSupabaseClient();\n  return client.auth.getSession();\n}\n\nexport function onAuthStateChange(callback: (event: AuthChangeEvent, session: Session | null) => void) {\n  const client = getSupabaseClient();\n  const { data: subscription } = client.auth.onAuthStateChange((event, session) => {\n    callback(event, session);\n  });\n  return () => subscription.subscription.unsubscribe();\n}\n\n// Optional fallback if ever bridging legacy tokens\nexport async function setSession(access_token: string, refresh_token: string) {\n  const client = getSupabaseClient();\n  return client.auth.setSession({ access_token, refresh_token });\n}\n"
+    },
+    {
+      "file": "src/presentation/navigation/AppNavigator.tsx",
+      "content": "import React, { useEffect, useState } from 'react';\nimport { NavigationContainer } from '@react-navigation/native';\nimport { createNativeStackNavigator } from '@react-navigation/native-stack';\nimport { getSession, onAuthStateChange } from '../../data/data_sources/supabase_client';\nimport LoginScreen from '../screens/auth/LoginScreen';\nimport HomeScreen from '../screens/home/HomeScreen'; // adjust path as needed\n\nconst Stack = createNativeStackNavigator();\n\nconst AppNavigator = () => {\n  const [loading, setLoading] = useState(true);\n  const [isAuthed, setIsAuthed] = useState(false);\n\n  useEffect(() => {\n    let unsubscribe: (() => void) | null = null;\n\n    getSession().then(({ data, error }) => {\n      if (error) {\n        console.log('getSession error', error);\n      }\n      setIsAuthed(!!data?.session);\n      setLoading(false);\n    });\n\n    unsubscribe = onAuthStateChange((event, session) => {\n      console.log('onAuthStateChange', event, !!session);\n      setIsAuthed(!!session);\n      setLoading(false);\n    });\n\n    return () => {\n      if (unsubscribe) unsubscribe();\n    };\n  }, []);\n\n  if (loading) {\n    return null; // or a splash component\n  }\n\n  return (\n    <NavigationContainer>\n      <Stack.Navigator screenOptions={{ headerShown: false }}>\n        {isAuthed ? (\n          <Stack.Screen name=\"Home\" component={HomeScreen} />\n        ) : (\n          <Stack.Screen name=\"Auth\" component={LoginScreen} />\n        )}\n      </Stack.Navigator>\n    </NavigationContainer>\n  );\n};\n\nexport default AppNavigator;\n"
+    },
+    {
+      "file": "src/presentation/screens/auth/LoginScreen.tsx",
+      "content": "import React, { useState } from 'react';\nimport { View, TextInput, Button, Text, StyleSheet } from 'react-native';\nimport { signInWithPassword } from '../../../data/data_sources/supabase_client';\n\nconst LoginScreen = () => {\n  const [email, setEmail] = useState('nameer@welcome.com');\n  const [password, setPassword] = useState('tapori76');\n  const [errorMsg, setErrorMsg] = useState('');\n  const [loading, setLoading] = useState(false);\n\n  const onSignIn = async () => {\n    setErrorMsg('');\n    setLoading(true);\n    try {\n      const { data, error } = await signInWithPassword(email.trim(), password);\n      if (error) {\n        setErrorMsg(error.message);\n      } else {\n        // onAuthStateChange will handle navigation\n      }\n    } catch (err: any) {\n      setErrorMsg(err?.message || 'Unexpected error');\n    } finally {\n      setLoading(false);\n    }\n  };\n\n  return (\n    <View style={styles.container}>\n      <Text>Email</Text>\n      <TextInput value={email} onChangeText={setEmail} autoCapitalize=\"none\" style={styles.input} />\n      <Text>Password</Text>\n      <TextInput value={password} onChangeText={setPassword} secureTextEntry style={styles.input} />\n      {!!errorMsg && <Text style={styles.error}>{errorMsg}</Text>}\n      <Button title={loading ? 'Signing in...' : 'Sign In'} onPress={onSignIn} disabled={loading} />\n    </View>\n  );\n};\n\nconst styles = StyleSheet.create({\n  container: { flex: 1, padding: 16, justifyContent: 'center', gap: 12 },\n  input: { borderWidth: 1, borderColor: '#ccc', padding: 10, borderRadius: 8 },\n  error: { color: 'red' },\n});\n\nexport default LoginScreen;\n"
+    }
+  ],
+  "cleanup_alignment": [
+    "Remove/disable all axios-based auth calls to /auth/v1/token.",
+    "Ensure all Supabase usage imports the singleton via getSupabaseClient().",
+    "Remove any custom currentUser store from navigation gating; rely on SDK session.",
+    "Keep WatermelonDB unchanged (not auth-related)."
+  ],
+  "diagnostics_logging": {
+    "what_to_log": [
+      "Before sign-in call",
+      "After sign-in call",
+      "Inside onAuthStateChange (event, !!session)",
+      "After getSession (hydration)"
+    ],
+    "avoid": "Do not log access or refresh tokens.",
+    "adb_command": "adb logcat *:S ReactNativeJS:V",
+    "expected_logs_on_success": [
+      "onAuthStateChange SIGNED_IN true",
+      "getSession returns non-null session"
+    ]
+  },
+  "build_run_steps_android": [
+    "Clean and reinstall: rm -rf node_modules && npm install",
+    "Start with clean cache: npx expo start -c",
+    "Build dev client (if needed): eas build --profile preview --platform android --local",
+    "Install APK on emulator: adb install path/to/app-preview.apk",
+    "Run and observe logs: adb logcat *:S ReactNativeJS:V",
+    "Test sign-in with provided creds and watch for SIGNED_IN"
+  ],
+  "test_matrix": {
+    "happy_path": [
+      "Valid sign-in navigates to Home.",
+      "Cold start after sign-in restores session and auto-navigates to Home."
+    ],
+    "logout": [
+      "From Home, logout returns to Login.",
+      "getSession returns null after logout."
+    ],
+    "background_foreground": [
+      "Sign in, background 1–2 minutes, foreground: remains authed."
+    ],
+    "token_refresh": [
+      "After 5–10 minutes, issue a Supabase request; remains authed (auto-refresh).",
+      "Optional: test button calling auth.refreshSession succeeds."
+    ],
+    "invalid_creds": [
+      "Wrong password shows error and stays on Login."
+    ],
+    "offline": [
+      "While previously signed in, open offline: shows Home if session valid; new sign-in fails gracefully with error."
+    ],
+    "slow_network": [
+      "Throttle to 3G; sign-in completes without silent failure."
+    ],
+    "multiple_starts": [
+      "Sign in, then reload JS (Expo 'r'); session rehydrates and stays authed."
+    ]
+  },
+  "regression_checklist": [
+    "No axios calls to /auth/v1/token remain.",
+    "Only one createClient instance; all modules use getSupabaseClient.",
+    "index.js polyfills load before any Supabase import.",
+    "Supabase auth config uses AsyncStorage; persistSession and autoRefreshToken true.",
+    "onAuthStateChange fires SIGNED_IN on Android (seen in logs).",
+    "Navigation gating uses SDK session, not custom store.",
+    "No token leakage in logs.",
+    "Web remains unaffected (Platform.OS === 'web' path OK)."
+  ],
+  "additional_recommendations": [
+    "Pin versions: @supabase/supabase-js (latest 2.x), @react-native-async-storage/async-storage (latest), Expo SDK 54.",
+    "Keep Supabase URL/key in env (app.config.js/app.json; use expo-constants or @env).",
+    "Create PR branch (e.g., fix/android-auth-sdk) for these changes.",
+    "Optional future: add lightweight E2E smoke (e.g., Detox) to assert getSession after launch."
+  ],
+  "fallback": "If a legacy REST auth call must be kept, immediately call supabase.auth.setSession({ access_token, refresh_token }) with returned tokens. Preferred approach: use signInWithPassword exclusively.",
+  "rollback_plan": "If issues arise, revert the auth refactor commit. Impact is localized to auth wiring; data paths are unchanged.",
+  "expected_outcome": "Android sign-in succeeds; onAuthStateChange emits SIGNED_IN; getSession is non-null; navigation proceeds to Home. Cold starts restore session via AsyncStorage. Silent failures are eliminated."
+}
+```
