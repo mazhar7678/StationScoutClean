@@ -1,5 +1,6 @@
-import { createClient, SupabaseClient as SupabaseClientType } from '@supabase/supabase-js';
+import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createClient, SupabaseClient as SupabaseClientType } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -42,21 +43,6 @@ class SupabaseClientWrapper {
           persistSession: true,
           detectSessionInUrl: false,
         },
-      });
-
-      this.supabase.auth.onAuthStateChange((event, session) => {
-        console.log('[Auth] State changed:', event);
-        if (session?.user) {
-          this.currentUser = {
-            id: session.user.id,
-            email: session.user.email || '',
-            access_token: session.access_token,
-            refresh_token: session.refresh_token,
-          };
-        } else {
-          this.currentUser = null;
-        }
-        this.notifyListeners();
       });
     }
 
@@ -103,78 +89,91 @@ class SupabaseClientWrapper {
   }
 
   async signUp(credentials: { email: string; password: string }): Promise<AuthResponse> {
-    if (!this.supabase) {
+    if (!supabaseUrl || !supabaseKey) {
       return { data: null, error: { message: 'Supabase not configured' } };
     }
 
     try {
-      console.log('[Auth] SignUp: Creating account...');
+      console.log('[Auth] SignUp: Creating account via axios...');
       
-      const { data, error } = await this.supabase.auth.signUp({
-        email: credentials.email.trim(),
-        password: credentials.password,
-      });
+      const response = await axios.post(
+        `${supabaseUrl}/auth/v1/signup`,
+        {
+          email: credentials.email.trim(),
+          password: credentials.password,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`,
+          },
+          timeout: 30000,
+        }
+      );
 
-      if (error) {
-        console.log('[Auth] SignUp Failed:', error.message);
-        return { data: null, error: { message: error.message } };
-      }
-
-      console.log('[Auth] SignUp Success: Account created!');
+      console.log('[Auth] SignUp Success:', response.status);
       return { data: { user: null, session: null }, error: null };
     } catch (e: any) {
-      console.log('[Auth] SignUp Exception:', e?.message);
-      return { data: null, error: { message: e?.message || 'Unknown error' } };
+      const errorMsg = e.response?.data?.error_description || e.response?.data?.msg || e.message || 'Sign up failed';
+      console.log('[Auth] SignUp Failed:', errorMsg);
+      return { data: null, error: { message: errorMsg } };
     }
   }
 
   async signIn(credentials: { email: string; password: string }): Promise<AuthResponse> {
-    if (!this.supabase) {
+    if (!supabaseUrl || !supabaseKey) {
       console.log('[Auth] Config Error: Supabase not configured');
       return { data: null, error: { message: 'Supabase not configured' } };
     }
 
     try {
-      console.log('[Auth] SignIn: Logging in as', credentials.email);
+      console.log('[Auth] SignIn: Logging in via axios as', credentials.email);
       
-      const { data, error } = await this.supabase.auth.signInWithPassword({
-        email: credentials.email.trim(),
-        password: credentials.password,
-      });
+      const response = await axios.post(
+        `${supabaseUrl}/auth/v1/token?grant_type=password`,
+        {
+          email: credentials.email.trim(),
+          password: credentials.password,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`,
+          },
+          timeout: 30000,
+        }
+      );
 
-      if (error) {
-        console.log('[Auth] Login Failed:', error.message);
-        return { data: null, error: { message: error.message } };
-      }
-
-      if (data.session) {
+      const data = response.data;
+      
+      if (data.access_token) {
         const user: AuthUser = {
           id: data.user?.id || '',
           email: credentials.email,
-          access_token: data.session.access_token,
-          refresh_token: data.session.refresh_token,
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
         };
 
         await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
         this.currentUser = user;
         this.notifyListeners();
 
-        console.log('[Auth] Success: Logged in successfully');
+        console.log('[Auth] Success: Logged in successfully via axios');
         return { data: { user, session: user }, error: null };
       }
 
-      return { data: null, error: { message: 'No session returned' } };
+      return { data: null, error: { message: 'No access token returned' } };
     } catch (e: any) {
-      console.log('[Auth] Login Exception:', e?.message);
-      return { data: null, error: { message: e?.message || 'Unknown error' } };
+      const errorMsg = e.response?.data?.error_description || e.response?.data?.msg || e.message || 'Login failed';
+      console.log('[Auth] Login Failed:', errorMsg);
+      return { data: null, error: { message: errorMsg } };
     }
   }
 
   async signOut(): Promise<{ error: { message: string } | null }> {
     try {
-      if (this.supabase) {
-        await this.supabase.auth.signOut();
-      }
       await AsyncStorage.removeItem(AUTH_USER_KEY);
       this.currentUser = null;
       this.notifyListeners();
@@ -185,18 +184,39 @@ class SupabaseClientWrapper {
   }
 
   async refreshSession(): Promise<void> {
-    if (this.supabase) {
-      const { data } = await this.supabase.auth.refreshSession();
-      if (data.session) {
+    if (!supabaseUrl || !supabaseKey || !this.currentUser?.refresh_token) {
+      return;
+    }
+
+    try {
+      const response = await axios.post(
+        `${supabaseUrl}/auth/v1/token?grant_type=refresh_token`,
+        {
+          refresh_token: this.currentUser.refresh_token,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`,
+          },
+          timeout: 30000,
+        }
+      );
+
+      const data = response.data;
+      if (data.access_token) {
         this.currentUser = {
-          id: data.user?.id || '',
-          email: data.user?.email || '',
-          access_token: data.session.access_token,
-          refresh_token: data.session.refresh_token,
+          id: data.user?.id || this.currentUser.id,
+          email: data.user?.email || this.currentUser.email,
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
         };
         await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(this.currentUser));
         this.notifyListeners();
       }
+    } catch (e) {
+      console.log('[Auth] Refresh failed:', e);
     }
   }
 }

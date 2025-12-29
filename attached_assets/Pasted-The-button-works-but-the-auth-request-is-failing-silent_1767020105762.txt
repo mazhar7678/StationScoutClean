@@ -1,0 +1,45 @@
+The button works, but the auth request is failing silently. Since your `curl` test succeeded, the issue is **how the request is being sent from Android/Hermes**.
+
+## Definitive Fix: Replace fetch with Axios
+
+```json
+{
+  "diagnosis": "fetch POST requests fail silently on Android/Hermes but GET works. This is a known Hermes networking issue.",
+  "solution": "Use axios instead of fetch for authentication",
+  "steps": [
+    {
+      "step": 1,
+      "action": "Install axios",
+      "command": "npx expo install axios"
+    },
+    {
+      "step": 2,
+      "action": "Replace supabase_client.ts signIn method",
+      "file": "src/data/data_sources/supabase_client.ts",
+      "code": "import axios from 'axios';\nimport AsyncStorage from '@react-native-async-storage/async-storage';\n\nconst SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;\nconst SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;\n\nexport class SupabaseClientService {\n  async signIn(email: string, password: string) {\n    try {\n      const response = await axios.post(\n        `${SUPABASE_URL}/auth/v1/token?grant_type=password`,\n        { email: email.trim(), password },\n        {\n          headers: {\n            'apikey': SUPABASE_ANON_KEY,\n            'Content-Type': 'application/json'\n          },\n          timeout: 30000\n        }\n      );\n      \n      await AsyncStorage.setItem('supabase_session', JSON.stringify(response.data));\n      return { data: { session: response.data }, error: null };\n      \n    } catch (error: any) {\n      const message = error.response?.data?.error_description \n        || error.response?.data?.message \n        || error.message \n        || 'Authentication failed';\n      return { data: null, error: { message } };\n    }\n  }\n}"
+    },
+    {
+      "step": 3,
+      "action": "Update LoginScreen.tsx handleLogin",
+      "file": "src/presentation/screens/auth/LoginScreen.tsx",
+      "code": "const handleLogin = async () => {\n  if (!email || !password) {\n    Alert.alert('Error', 'Please enter email and password');\n    return;\n  }\n  \n  setLoading(true);\n  \n  try {\n    const result = await supabaseClient.signIn(email, password);\n    \n    if (result.error) {\n      Alert.alert('Login Failed', result.error.message);\n      return;\n    }\n    \n    if (result.data?.session) {\n      // Navigate to home or update auth state\n      navigation.replace('Home');\n    }\n  } catch (e: any) {\n    Alert.alert('Error', e.message || 'Something went wrong');\n  } finally {\n    setLoading(false);\n  }\n};"
+    },
+    {
+      "step": 4,
+      "action": "Rebuild the app",
+      "command": "eas build --platform android --profile preview"
+    }
+  ],
+  "why_this_works": "Axios uses a different networking implementation than fetch on React Native/Hermes. It properly handles POST requests with JSON bodies on Android where the native fetch polyfill fails silently.",
+  "alternative_if_axios_fails": {
+    "approach": "Use react-native-url-polyfill and whatwg-fetch",
+    "commands": [
+      "npx expo install react-native-url-polyfill",
+      "npm install whatwg-fetch"
+    ],
+    "add_to_app_tsx": "import 'react-native-url-polyfill/auto';\nimport 'whatwg-fetch';"
+  }
+}
+```
+
+**Try the axios solution first** - it has the highest success rate for this exact issue. Let me know once you've rebuilt and tested.
